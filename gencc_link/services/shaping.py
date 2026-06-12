@@ -120,12 +120,12 @@ def gene_summary_dict(gene: GeneSummary, mode: ResponseMode) -> dict[str, Any]:
         "gene_curie": gene.gene_curie,
         "gene_symbol": gene.gene_symbol,
         "n_diseases": gene.n_diseases,
+        "n_submitters": gene.n_submitters,
         "max_classification": gene.max_classification,
         "has_conflict": gene.has_conflict,
     }
     if mode != "minimal":
         out["n_submissions"] = gene.n_submissions
-        out["n_submitters"] = gene.n_submitters
     return out
 
 
@@ -135,11 +135,11 @@ def disease_summary_dict(disease: DiseaseSummary, mode: ResponseMode) -> dict[st
         "disease_curie": disease.disease_curie,
         "disease_title": disease.disease_title,
         "n_genes": disease.n_genes,
+        "n_submitters": disease.n_submitters,
         "max_classification": disease.max_classification,
     }
     if mode != "minimal":
         out["n_submissions"] = disease.n_submissions
-        out["n_submitters"] = disease.n_submitters
     return out
 
 

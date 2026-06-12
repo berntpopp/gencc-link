@@ -119,10 +119,10 @@ class TestSummaryDicts:
             max_classification="Definitive",
         )
 
-    def test_gene_minimal_omits_counts(self) -> None:
+    def test_gene_minimal_keeps_submitters_omits_submissions(self) -> None:
         out = shaping.gene_summary_dict(self._gene(), "minimal")
         assert "n_submissions" not in out
-        assert "n_submitters" not in out
+        assert out["n_submitters"] == 3
         assert out["gene_symbol"] == "SKI"
 
     def test_gene_compact_has_counts(self) -> None:
@@ -130,10 +130,10 @@ class TestSummaryDicts:
         assert out["n_submissions"] == 3
         assert out["n_submitters"] == 3
 
-    def test_disease_minimal_omits_counts(self) -> None:
+    def test_disease_minimal_keeps_submitters_omits_submissions(self) -> None:
         out = shaping.disease_summary_dict(self._disease(), "minimal")
         assert "n_submissions" not in out
-        assert "n_submitters" not in out
+        assert out["n_submitters"] == 3
         assert out["disease_title"] == "Shprintzen-Goldberg syndrome"
 
     def test_disease_standard_has_counts(self) -> None:
