@@ -129,6 +129,11 @@ def recovery_commands(
                 cmd("search_genes", query=arguments["query"]),
                 cmd("search_diseases", query=arguments["query"]),
             ]
+    if error_code == "ambiguous_query" and tool == "resolve_identifier" and arguments.get("query"):
+        return [
+            cmd("get_gene_curations", gene=arguments["query"]),
+            cmd("get_disease_curations", disease=arguments["query"]),
+        ]
     if error_code == "invalid_input":
         if field == "submitter":
             return [cmd("list_submitters")]

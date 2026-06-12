@@ -135,7 +135,8 @@ def register_assertion_tools(mcp: FastMCP) -> None:
         description=(
             "Resolve free text to a canonical GenCC gene (HGNC) and/or disease "
             "(MONDO) identifier by exact symbol/id/title match. Use kind='gene' or "
-            "kind='disease' to disambiguate; default 'auto' tries both."
+            "kind='disease' to disambiguate; default 'auto' tries both and returns "
+            "ambiguous_query if the text matches both a gene and a disease."
         ),
     )
     async def resolve_identifier(query: str, kind: str = "auto") -> dict[str, Any]:

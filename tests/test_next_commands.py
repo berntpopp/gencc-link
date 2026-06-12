@@ -161,3 +161,9 @@ class TestRecoveryCommands:
 
     def test_invalid_no_field_returns_empty(self) -> None:
         assert nc.recovery_commands("search_genes", "invalid_input", {}, None) == []
+
+    def test_ambiguous_query_resolve(self) -> None:
+        out = nc.recovery_commands(
+            "resolve_identifier", "ambiguous_query", {"query": "AMBIG"}, None
+        )
+        assert [c["tool"] for c in out] == ["get_gene_curations", "get_disease_curations"]

@@ -4,9 +4,44 @@ from __future__ import annotations
 
 import pytest
 
-from gencc_link.exceptions import InvalidInputError, NotFoundError
-from gencc_link.models import BuildMeta
+from gencc_link.exceptions import AmbiguousQueryError, InvalidInputError, NotFoundError
+from gencc_link.models import BuildMeta, DiseaseSummary, GeneSummary
 from gencc_link.services.gencc_service import GenCCService
+
+
+class _BothMatchRepo:
+    """Minimal repo stub: the token 'AMBIG' resolves to BOTH a gene and a disease."""
+
+    def resolve_gene(self, identifier: str) -> GeneSummary | None:
+        if identifier.upper() == "AMBIG":
+            return GeneSummary(
+                gene_curie="HGNC:9", gene_symbol="AMBIG",
+                n_submissions=1, n_diseases=1, n_submitters=1,
+            )
+        return None
+
+    def resolve_disease(self, identifier: str) -> DiseaseSummary | None:
+        if identifier.upper() == "AMBIG":
+            return DiseaseSummary(
+                disease_curie="MONDO:9", disease_title="AMBIG",
+                n_submissions=1, n_genes=1, n_submitters=1,
+            )
+        return None
+
+
+def test_resolve_identifier_auto_ambiguous_raises() -> None:
+    svc = GenCCService(_BothMatchRepo(), cache_size=0, cache_ttl=0)  # type: ignore[arg-type]
+    with pytest.raises(AmbiguousQueryError) as exc:
+        svc.resolve_identifier("AMBIG", kind="auto")
+    assert "HGNC:9" in str(exc.value)
+    assert "MONDO:9" in str(exc.value)
+
+
+def test_resolve_identifier_kind_gene_not_ambiguous() -> None:
+    svc = GenCCService(_BothMatchRepo(), cache_size=0, cache_ttl=0)  # type: ignore[arg-type]
+    out = svc.resolve_identifier("AMBIG", kind="gene")
+    assert out["gene"]["gene_symbol"] == "AMBIG"
+    assert out["disease"] is None
 
 
 class TestSearchGenes:
