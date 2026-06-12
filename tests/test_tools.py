@@ -193,3 +193,13 @@ class TestEvalHardening:
         )
         data = result.structured_content
         assert data["_meta"]["citation_ref"] == "gencc://citation"
+
+
+class TestDiagnosticsQuota:
+    async def test_diagnostics_has_quota_block(self, mcp_client) -> None:
+        result = await mcp_client.call_tool("get_gencc_diagnostics", {})
+        data = result.structured_content
+        assert "quota" in data
+        assert data["quota"]["daily_quota"] == 20
+        assert "remaining" in data["quota"]
+        assert "used_today" in data["quota"]
