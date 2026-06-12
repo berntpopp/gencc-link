@@ -12,6 +12,8 @@ from typing import Any, Literal
 from pydantic import BaseModel, Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from gencc_link import __version__
+
 # Project root: <repo>/gencc_link/config.py -> <repo>
 _PROJECT_ROOT = Path(__file__).resolve().parents[1]
 _DEFAULT_DATA_DIR = _PROJECT_ROOT / "data"
@@ -39,7 +41,7 @@ class GenCCDataConfigModel(BaseModel):
         description="HTTP timeout (seconds) for downloading the GenCC export.",
     )
     user_agent: str = Field(
-        default="GenCC-Link/0.1.0 (+https://github.com/berntpopp/gencc-link)",
+        default=f"GenCC-Link/{__version__} (+https://github.com/berntpopp/gencc-link)",
         description="User-Agent sent to thegencc.org.",
     )
     auto_bootstrap: bool = Field(
