@@ -141,3 +141,65 @@ class TestHead:
         respx.head(EXPORT_URL).mock(side_effect=httpx.ConnectError("down"))
         with pytest.raises(DownloadError):
             head(cfg)
+
+
+class TestQuotaCounter:
+    def test_status_zero_when_no_cache(self) -> None:
+        from gencc_link.ingest.downloader import download_quota_status
+
+        cfg = _config()
+        st = download_quota_status(cfg)
+        assert st["used_today"] == 0
+        assert st["daily_quota"] == 20
+        assert st["remaining"] == 20
+
+    @respx.mock
+    def test_increment_on_real_download(self) -> None:
+        from gencc_link.ingest.downloader import download_export, download_quota_status
+
+        cfg = _config()
+        respx.get(EXPORT_URL).mock(
+            return_value=httpx.Response(200, text=TSV_BODY, headers={"ETag": '"a"'})
+        )
+        download_export(cfg)
+        st = download_quota_status(cfg)
+        assert st["used_today"] == 1
+        assert st["remaining"] == 19
+
+    @respx.mock
+    def test_two_downloads_increment_twice(self) -> None:
+        from gencc_link.ingest.downloader import download_export, download_quota_status
+
+        cfg = _config()
+        respx.get(EXPORT_URL).mock(
+            return_value=httpx.Response(200, text=TSV_BODY, headers={"ETag": '"a"'})
+        )
+        download_export(cfg, force=True)
+        download_export(cfg, force=True)
+        assert download_quota_status(cfg)["used_today"] == 2
+
+    @respx.mock
+    def test_304_does_not_increment(self) -> None:
+        from gencc_link.ingest.downloader import download_export, download_quota_status
+
+        cfg = _config()
+        cfg.data_dir.mkdir(parents=True, exist_ok=True)
+        (cfg.data_dir / CACHE_FILENAME).write_text(
+            json.dumps({EXPORT_URL: {"etag": '"seed"', "last_modified": "LM"}})
+        )
+        respx.get(EXPORT_URL).mock(return_value=httpx.Response(304))
+        download_export(cfg)
+        assert download_quota_status(cfg)["used_today"] == 0
+
+    @respx.mock
+    def test_counter_preserves_validators(self) -> None:
+        from gencc_link.ingest.downloader import download_export
+
+        cfg = _config()
+        respx.get(EXPORT_URL).mock(
+            return_value=httpx.Response(200, text=TSV_BODY, headers={"ETag": '"keep"'})
+        )
+        download_export(cfg)
+        cache = json.loads((cfg.data_dir / CACHE_FILENAME).read_text())
+        assert cache[EXPORT_URL]["etag"] == '"keep"'
+        assert cache["downloads"]["count"] == 1
