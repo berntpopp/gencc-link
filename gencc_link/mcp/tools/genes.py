@@ -8,7 +8,11 @@ from pydantic import Field
 
 from gencc_link.mcp.annotations import READ_ONLY_OPEN_WORLD
 from gencc_link.mcp.envelope import McpErrorContext, run_mcp_tool
-from gencc_link.mcp.next_commands import after_gene_curations, after_search_genes
+from gencc_link.mcp.next_commands import (
+    after_gene_curations,
+    after_genes_curations,
+    after_search_genes,
+)
 from gencc_link.mcp.service_adapters import get_gencc_service
 from gencc_link.models.enums import ResponseMode
 
@@ -88,5 +92,38 @@ def register_gene_tools(mcp: FastMCP) -> None:
             "get_gene_curations",
             call,
             context=McpErrorContext("get_gene_curations", arguments={"gene": gene}),
+            response_mode=response_mode,
+        )
+
+    @mcp.tool(
+        name="get_genes_curations",
+        title="Get Curations for Many Genes",
+        annotations=READ_ONLY_OPEN_WORLD,
+        tags={"gene", "batch"},
+        description=(
+            "Batch form of get_gene_curations: pass a list of gene symbols or HGNC "
+            "ids (max 20) and get each gene's disease assertions in one call. "
+            "Unresolvable inputs come back in `unresolved` and the call still "
+            "succeeds. Each result block mirrors get_gene_curations (gene summary + "
+            "consensus diseases). Use limit_per_gene to cap diseases per gene and "
+            "response_mode to widen detail."
+        ),
+    )
+    async def get_genes_curations(
+        genes: list[str],
+        response_mode: _MODE = "compact",
+        limit_per_gene: int = 50,
+    ) -> dict[str, Any]:
+        async def call() -> dict[str, Any]:
+            payload = get_gencc_service().get_genes_curations(
+                genes, response_mode=response_mode, limit_per_gene=limit_per_gene
+            )
+            payload["_meta"] = {"next_commands": after_genes_curations(payload)}
+            return payload
+
+        return await run_mcp_tool(
+            "get_genes_curations",
+            call,
+            context=McpErrorContext("get_genes_curations", arguments={"genes": genes}),
             response_mode=response_mode,
         )

@@ -12,6 +12,7 @@ from __future__ import annotations
 import sqlite3
 from pathlib import Path
 
+from gencc_link.data import find
 from gencc_link.data.queries import (
     assertion_from_row,
     disease_summary_from_row,
@@ -386,25 +387,17 @@ class GenCCRepository:
         """Filter aggregated gene-disease assertions.
 
         When ``classification``/``submitter``/``moi`` filters are present, the
-        matching ``(gene_curie, disease_curie)`` pairs are first found in the
-        raw ``submissions`` table, then the corresponding ``gene_disease`` rows
-        are returned. Otherwise ``gene_disease`` is queried directly.
-
-        Args:
-            gene: Gene symbol or HGNC CURIE (resolved to a gene_curie).
-            disease: A harmonized disease CURIE.
-            classification: Classification titles to include (any-of).
-            submitter: Submitter titles or curies to include (any-of).
-            moi: Mode-of-inheritance title (case-insensitive exact).
-            has_conflict: If set, filter on the conflict flag.
-            limit: Maximum number of rows in the returned page.
-            offset: Number of leading rows to skip.
+        matching ``(gene_curie, disease_curie)`` pairs are first found in the raw
+        ``submissions`` table; the ``gene_disease`` page is then fetched by
+        primary key with ``ORDER BY``/``LIMIT`` pushed into SQL, so cost is bounded
+        by page size rather than the size of the match set. ``matched`` is built
+        only for the returned page.
 
         Returns:
             A ``(page, total, matched_by_pair)`` tuple. ``total`` is the distinct
-            pair count; ``matched_by_pair`` maps each ``(gene_curie, disease_curie)``
-            to the distinct submissions that satisfied a submission-level filter
-            (empty when no such filter is active).
+            pair count; ``matched_by_pair`` maps each returned
+            ``(gene_curie, disease_curie)`` to the distinct submissions that
+            satisfied a submission-level filter (empty when none is active).
         """
         gene_curie: str | None = None
         if gene is not None:
@@ -414,93 +407,40 @@ class GenCCRepository:
             gene_curie = resolved.gene_curie
 
         submission_filtered = bool(classification) or bool(submitter) or bool(moi)
-        matched: dict[tuple[str, str], list[dict[str, str | None]]] = {}
-
+        pairs: set[tuple[str, str]] | None = None
         if submission_filtered:
-            matched = self._matched_from_submissions(
-                gene_curie=gene_curie,
-                disease_curie=disease,
-                classification=classification,
-                submitter=submitter,
-                moi=moi,
+            pairs = set(
+                find.matching_pairs(
+                    self._conn,
+                    gene_curie=gene_curie,
+                    disease_curie=disease,
+                    classification=classification,
+                    submitter=submitter,
+                    moi=moi,
+                )
             )
-            if not matched:
+            if not pairs:
                 return [], 0, {}
-            rows = self._gene_disease_rows_for_pairs(set(matched), has_conflict=has_conflict)
-            # Drop matched entries for pairs filtered out by has_conflict.
-            kept = {(r["gene_curie"], r["disease_curie"]) for r in rows}
-            matched = {k: v for k, v in matched.items() if k in kept}
-        else:
-            rows = self._gene_disease_rows_direct(
-                gene_curie=gene_curie,
-                disease_curie=disease,
-                has_conflict=has_conflict,
-            )
+            # The pair set already encodes the gene/disease constraint.
+            gene_curie = None
+            disease = None
 
-        total = len(rows)
-        page = rows[offset : offset + limit]
-        return [assertion_from_row(row) for row in page], total, matched
-
-    def _matched_from_submissions(
-        self,
-        *,
-        gene_curie: str | None,
-        disease_curie: str | None,
-        classification: list[str] | None,
-        submitter: list[str] | None,
-        moi: str | None,
-    ) -> dict[tuple[str, str], list[dict[str, str | None]]]:
-        """Map (gene_curie, disease_curie) -> distinct submissions matching the filters."""
-        clauses: list[str] = []
-        params: list[object] = []
-        if gene_curie is not None:
-            clauses.append("gene_curie = ?")
-            params.append(gene_curie)
-        if disease_curie is not None:
-            clauses.append("disease_curie = ?")
-            params.append(disease_curie)
-        if classification:
-            placeholders = ",".join("?" for _ in classification)
-            clauses.append(f"classification_title IN ({placeholders})")
-            params.extend(classification)
-        if submitter:
-            placeholders = ",".join("?" for _ in submitter)
-            clauses.append(
-                f"(submitter_title IN ({placeholders}) OR submitter_curie IN ({placeholders}))"
-            )
-            params.extend(submitter)
-            params.extend(submitter)
-        if moi:
-            clauses.append("moi_title = ? COLLATE NOCASE")
-            params.append(moi)
-
-        where = (" WHERE " + " AND ".join(clauses)) if clauses else ""
-        sql = (
-            "SELECT gene_curie, disease_curie, submitter_title, classification_title, "
-            f"moi_title FROM submissions{where}"
+        page_rows, total = find.gene_disease_page(
+            self._conn,
+            pairs=pairs,
+            gene_curie=gene_curie,
+            disease_curie=disease,
+            has_conflict=has_conflict,
+            limit=limit,
+            offset=offset,
         )
-        out: dict[tuple[str, str], list[dict[str, str | None]]] = {}
-        seen: set[tuple[str, str, str | None, str | None, str | None]] = set()
-        for row in self._conn.execute(sql, params).fetchall():
-            key = (row["gene_curie"], row["disease_curie"])
-            dedupe = (
-                row["gene_curie"],
-                row["disease_curie"],
-                row["submitter_title"],
-                row["classification_title"],
-                row["moi_title"],
+        matched: dict[tuple[str, str], list[dict[str, str | None]]] = {}
+        if submission_filtered:
+            page_pairs = {(r["gene_curie"], r["disease_curie"]) for r in page_rows}
+            matched = find.matched_for_pairs(
+                self._conn, page_pairs, classification=classification, submitter=submitter, moi=moi
             )
-            if dedupe in seen:
-                continue
-            seen.add(dedupe)
-            out.setdefault(key, []).append(
-                {
-                    "submitter_title": row["submitter_title"],
-                    "classification_title": row["classification_title"],
-                    "moi_title": row["moi_title"],
-                }
-            )
-        return out
+        return [assertion_from_row(row) for row in page_rows], total, matched
 
     def distinct_moi(self) -> list[tuple[str, str | None]]:
         """Return distinct ``(moi_title, moi_curie)`` present in the submissions table."""
@@ -510,48 +450,6 @@ class GenCCRepository:
             "GROUP BY moi_title ORDER BY moi_title"
         ).fetchall()
         return [(row["moi_title"], row["curie"]) for row in rows]
-
-    def _gene_disease_rows_for_pairs(
-        self, pairs: set[tuple[str, str]], *, has_conflict: bool | None
-    ) -> list[sqlite3.Row]:
-        """Fetch and sort ``gene_disease`` rows for an explicit set of pairs."""
-        rows = self._conn.execute(
-            "SELECT * FROM gene_disease ORDER BY consensus_rank DESC, gene_symbol, disease_title"
-        ).fetchall()
-        out: list[sqlite3.Row] = []
-        for row in rows:
-            if (row["gene_curie"], row["disease_curie"]) not in pairs:
-                continue
-            if has_conflict is not None and bool(row["has_conflict"]) != has_conflict:
-                continue
-            out.append(row)
-        return out
-
-    def _gene_disease_rows_direct(
-        self,
-        *,
-        gene_curie: str | None,
-        disease_curie: str | None,
-        has_conflict: bool | None,
-    ) -> list[sqlite3.Row]:
-        """Query ``gene_disease`` directly for gene/disease/conflict filters."""
-        clauses: list[str] = []
-        params: list[object] = []
-        if gene_curie is not None:
-            clauses.append("gene_curie = ?")
-            params.append(gene_curie)
-        if disease_curie is not None:
-            clauses.append("disease_curie = ?")
-            params.append(disease_curie)
-        if has_conflict is not None:
-            clauses.append("has_conflict = ?")
-            params.append(1 if has_conflict else 0)
-        where = (" WHERE " + " AND ".join(clauses)) if clauses else ""
-        sql = (
-            f"SELECT * FROM gene_disease{where} "
-            "ORDER BY consensus_rank DESC, gene_symbol, disease_title"
-        )
-        return self._conn.execute(sql, params).fetchall()
 
     # -- submitters --------------------------------------------------------------
 

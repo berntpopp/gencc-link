@@ -18,6 +18,7 @@ from gencc_link.services import shaping
 from gencc_link.services.filters import validate_find_filters
 
 _MAX_LIMIT = 200
+_BATCH_MAX = 20
 
 
 class _TTLCache:
@@ -212,6 +213,111 @@ class GenCCService:
             payload["truncated"] = trunc
         return payload
 
+    # --- batch ----------------------------------------------------------
+
+    @staticmethod
+    def _dedupe_batch(items: list[str], *, field: str) -> list[str]:
+        """Validate and de-duplicate (case-insensitively) a batch input list."""
+        if not items:
+            raise InvalidInputError(f"{field} must not be empty.", field=field)
+        if len(items) > _BATCH_MAX:
+            raise InvalidInputError(
+                f"Too many values ({len(items)}); max {_BATCH_MAX} per call.", field=field
+            )
+        seen: set[str] = set()
+        ordered: list[str] = []
+        for raw in items:
+            if not isinstance(raw, str) or not raw.strip():
+                raise InvalidInputError(
+                    f"each {field} value must be a non-empty string.", field=field
+                )
+            value = raw.strip()
+            if value.lower() in seen:
+                continue
+            seen.add(value.lower())
+            ordered.append(value)
+        return ordered
+
+    def get_genes_curations(
+        self, genes: list[str], *, response_mode: str = "compact", limit_per_gene: int = 50
+    ) -> dict[str, Any]:
+        mode = self._validate_mode(response_mode)
+        ordered = self._dedupe_batch(genes, field="genes")
+        limit = self._clamp_limit(limit_per_gene)
+        results: list[dict[str, Any]] = []
+        unresolved: list[dict[str, str]] = []
+        for gene in ordered:
+            summary = self._repo.resolve_gene(gene)
+            if summary is None:
+                unresolved.append({"input": gene, "reason": "not_found"})
+                continue
+            pairs = self._repo.get_gene_disease_pairs(summary.gene_curie)
+            total = len(pairs)
+            page = pairs[:limit]
+            block: dict[str, Any] = {
+                "gene": shaping.gene_summary_dict(summary, mode),
+                "headline": shaping.gene_headline(summary),
+                "count": len(page),
+                "total": total,
+                "diseases": [shaping.assertion_dict(a, mode, omit_gene=True) for a in page],
+            }
+            trunc = shaping.truncation_block(total, limit, 0)
+            if trunc:
+                block["truncated"] = trunc
+            results.append(block)
+        payload: dict[str, Any] = {
+            "headline": (
+                f"Curations for {len(results)} of {len(ordered)} requested gene(s) "
+                f"({len(unresolved)} unresolved)."
+            ),
+            "requested": len(ordered),
+            "count": len(results),
+            "results": results,
+        }
+        if unresolved:
+            payload["unresolved"] = unresolved
+        return payload
+
+    def get_diseases_curations(
+        self, diseases: list[str], *, response_mode: str = "compact", limit_per_disease: int = 50
+    ) -> dict[str, Any]:
+        mode = self._validate_mode(response_mode)
+        ordered = self._dedupe_batch(diseases, field="diseases")
+        limit = self._clamp_limit(limit_per_disease)
+        results: list[dict[str, Any]] = []
+        unresolved: list[dict[str, str]] = []
+        for disease in ordered:
+            summary = self._repo.resolve_disease(disease)
+            if summary is None:
+                unresolved.append({"input": disease, "reason": "not_found"})
+                continue
+            pairs = self._repo.get_disease_gene_pairs(summary.disease_curie)
+            total = len(pairs)
+            page = pairs[:limit]
+            block: dict[str, Any] = {
+                "disease": shaping.disease_summary_dict(summary, mode),
+                "headline": shaping.disease_headline(summary),
+                "count": len(page),
+                "total": total,
+                "genes": [shaping.assertion_dict(a, mode, omit_disease=True) for a in page],
+            }
+            trunc = shaping.truncation_block(total, limit, 0)
+            if trunc:
+                block["truncated"] = trunc
+            results.append(block)
+        payload: dict[str, Any] = {
+            "headline": (
+                f"Curations for {len(results)} of {len(ordered)} requested disease(s) "
+                f"({len(unresolved)} unresolved)."
+            ),
+            "requested": len(ordered),
+            "count": len(results),
+            "results": results,
+        }
+        if unresolved:
+            payload["unresolved"] = unresolved
+        return payload
+
     # --- detail ---------------------------------------------------------
 
     def get_gene_disease_assertion(
@@ -263,6 +369,7 @@ class GenCCService:
         moi: str | None = None,
         has_conflict: bool | None = None,
         response_mode: str = "compact",
+        ids_only: bool = False,
         limit: int = 50,
         offset: int = 0,
     ) -> dict[str, Any]:
@@ -305,11 +412,14 @@ class GenCCService:
             offset=offset,
         )
         rows: list[dict[str, Any]] = []
-        for a in results:
-            row = shaping.assertion_dict(a, mode)
-            if matched and mode != "minimal":
-                row["matched"] = matched.get((a.gene_curie, a.disease_curie), [])
-            rows.append(row)
+        if ids_only:
+            rows = [{"gene_curie": a.gene_curie, "disease_curie": a.disease_curie} for a in results]
+        else:
+            for a in results:
+                row = shaping.assertion_dict(a, mode)
+                if matched and mode != "minimal":
+                    row["matched"] = matched.get((a.gene_curie, a.disease_curie), [])
+                rows.append(row)
         payload: dict[str, Any] = {
             "count": len(results),
             "total": total,

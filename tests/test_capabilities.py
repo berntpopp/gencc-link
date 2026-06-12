@@ -12,10 +12,15 @@ from gencc_link.mcp.capabilities import (
 
 
 class TestBuildCapabilities:
-    def test_ten_tools(self) -> None:
+    def test_twelve_tools(self) -> None:
         caps = build_capabilities()
-        assert len(caps["tools"]) == 10
-        assert len(TOOLS) == 10
+        assert len(caps["tools"]) == 12
+        assert len(TOOLS) == 12
+
+    def test_batch_tools_listed(self) -> None:
+        caps = build_capabilities()
+        assert "get_genes_curations" in caps["tools"]
+        assert "get_diseases_curations" in caps["tools"]
 
     def test_has_classifications(self) -> None:
         caps = build_capabilities()

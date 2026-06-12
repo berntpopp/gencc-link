@@ -32,6 +32,8 @@ TOOLS: tuple[str, ...] = (
     "search_diseases",
     "get_gene_curations",
     "get_disease_curations",
+    "get_genes_curations",
+    "get_diseases_curations",
     "get_gene_disease_assertion",
     "find_curations",
     "list_submitters",
@@ -70,16 +72,22 @@ def _static_surface() -> dict[str, Any]:
             "disease text -> search_diseases -> get_disease_curations",
             "Definitive AD genes from ClinGen -> find_curations(classification=['Definitive'], "
             "moi='Autosomal dominant', submitter=['ClinGen'])",
+            "multiple genes at once -> get_genes_curations(genes=['BRCA2','NAA10']); "
+            "multiple diseases -> get_diseases_curations(diseases=[...])",
         ],
         "parameter_conventions": {
             "gene": "HGNC CURIE (HGNC:10896) or approved symbol (SKI); resolved exactly",
             "disease": "MONDO CURIE (MONDO:0008426), OMIM CURIE, or harmonized title",
+            "genes": "list of gene symbols or HGNC ids (max 20); batch form of `gene`",
+            "diseases": "list of disease ids or titles (max 20); batch form of `disease`",
             "classification": "one or more of the classification titles (see `classifications`)",
             "submitter": "submitter title (e.g. ClinGen) or GenCC submitter CURIE; "
             "validated against the live roster (see list_submitters)",
             "moi": "mode-of-inheritance title; data-derived and validated "
             "(see inheritance_modes). Out-of-vocabulary values return invalid_input.",
             "response_mode": "minimal | compact | standard | full (default compact)",
+            "ids_only": "find_curations only: return just {gene_curie, disease_curie} "
+            "pairs (no per-row detail) for cheap paging",
         },
         "error_codes": [
             "invalid_input",
@@ -93,6 +101,8 @@ def _static_surface() -> dict[str, Any]:
         "token_cost_hints": {
             "search_genes": "~1-3kB",
             "get_gene_curations": "compact ~2-5kB; full larger with per-submitter rows",
+            "get_genes_curations": "~2-5kB per resolved gene (compact); scales with the list",
+            "get_diseases_curations": "~2-5kB per resolved disease (compact); scales with the list",
             "get_gene_disease_assertion": "standard ~2-4kB; full adds raw submissions",
             "get_server_capabilities": "<4kB",
         },
@@ -109,6 +119,9 @@ def _static_surface() -> dict[str, Any]:
             "matched": "find_curations: the submission(s) that satisfied a submission-level "
             "classification/submitter/moi filter (compact/standard/full)",
             "has_conflict": "true when supporting and against assertions coexist for a pair",
+            "capabilities_version": "16-char content hash of the static surface; also echoed "
+            "by get_gencc_diagnostics for a near-zero-token drift probe (re-fetch this "
+            "document only when it changes)",
         },
         "resources": {
             "gencc://capabilities": "this document",
@@ -130,6 +143,11 @@ def _static_surface() -> dict[str, Any]:
 def capabilities_version() -> str:
     """16-char content hash of the static capabilities surface."""
     return str(_static_surface()["capabilities_version"])
+
+
+def server_version() -> str:
+    """Installed package version (mirrors the capabilities surface)."""
+    return str(_static_surface()["server_version"])
 
 
 def build_capabilities() -> dict[str, Any]:

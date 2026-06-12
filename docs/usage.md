@@ -43,6 +43,16 @@ counts. If it reports the database is unavailable, run `make data` (or
 2. `get_disease_curations` returns all genes asserted for that disease, each with
    its consensus classification.
 
+### Several genes or diseases at once
+
+`get_genes_curations(genes=[...])` and `get_diseases_curations(diseases=[...])`
+are the batch forms of `get_gene_curations` / `get_disease_curations`: pass up to
+20 symbols/ids and get each entity's curations in one call. Each result block
+mirrors the single-entity payload (`gene`/`disease` summary plus the consensus
+list); inputs that do not resolve are returned in `unresolved` and the call still
+succeeds, so a single typo never loses the rest of the batch. `limit_per_gene` /
+`limit_per_disease` cap rows per entity, and `response_mode` widens detail.
+
 ### Filtered discovery with `find_curations`
 
 `find_curations` filters assertions across the whole dataset. Supported filters:
@@ -56,6 +66,10 @@ counts. If it reports the database is unavailable, run `make data` (or
 
 Example intent: *"Definitive autosomal-dominant genes curated by ClinGen"* ->
 `find_curations(classification=["Definitive"], moi="Autosomal dominant", submitter=["ClinGen"])`.
+
+Pass `ids_only=true` to page a large match set cheaply: each result row is just
+`{gene_curie, disease_curie}`, with `total` and `truncated` unchanged, so you can
+walk the pages and then fetch detail only for the pairs you care about.
 
 `classification`, `submitter`, and `moi` are **validated and case-insensitive**:
 an out-of-vocabulary value (e.g. ClinVar's `"Pathogenic"`, or the short

@@ -43,6 +43,46 @@ def after_disease_curations(disease: str, gene_curies: list[str]) -> list[dict[s
     return [cmd("get_gene_disease_assertion", gene=gene_curies[0], disease=disease)]
 
 
+def after_genes_curations(payload: dict[str, Any]) -> list[dict[str, Any]]:
+    """After a batch of genes: retry the first miss, else drill into the first hit."""
+    unresolved = payload.get("unresolved") or []
+    if unresolved:
+        return [cmd("search_genes", query=unresolved[0]["input"])]
+    results = payload.get("results") or []
+    if results:
+        top = results[0]
+        diseases = top.get("diseases") or []
+        if diseases:
+            return [
+                cmd(
+                    "get_gene_disease_assertion",
+                    gene=top["gene"]["gene_curie"],
+                    disease=diseases[0]["disease_curie"],
+                )
+            ]
+    return []
+
+
+def after_diseases_curations(payload: dict[str, Any]) -> list[dict[str, Any]]:
+    """After a batch of diseases: retry the first miss, else drill into the first hit."""
+    unresolved = payload.get("unresolved") or []
+    if unresolved:
+        return [cmd("search_diseases", query=unresolved[0]["input"])]
+    results = payload.get("results") or []
+    if results:
+        top = results[0]
+        genes = top.get("genes") or []
+        if genes:
+            return [
+                cmd(
+                    "get_gene_disease_assertion",
+                    gene=genes[0]["gene_curie"],
+                    disease=top["disease"]["disease_curie"],
+                )
+            ]
+    return []
+
+
 def after_assertion(gene: str, disease: str) -> list[dict[str, Any]]:
     """After a gene-disease assertion: widen to the gene's other diseases."""
     return [
