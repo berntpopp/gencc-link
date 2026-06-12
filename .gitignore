@@ -1,0 +1,62 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Distribution / packaging
+.Python
+build/
+dist/
+*.egg-info/
+*.egg
+wheels/
+
+# Unit test / coverage reports
+htmlcov/
+.coverage
+.coverage.*
+coverage.xml
+*.cover
+.pytest_cache/
+
+# Environments
+.env
+.env.docker
+.venv
+env/
+venv/
+ENV/
+
+# mypy / ruff
+.mypy_cache/
+.dmypy.json
+dmypy.json
+.ruff_cache/
+
+# IDE / OS
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# GenCC data artifacts (built/downloaded; rebuild with `make data`).
+# The tiny test fixtures under tests/fixtures/ are tracked explicitly.
+/data/*.sqlite
+/data/*.sqlite-*
+/data/*.tsv
+/data/*.csv
+/data/*.tmp
+/data/download_cache.json
+
+# claude local state — keep .claude/skills/ tracked
+.claude/scheduled_tasks.lock
+.claude/settings.local.json
+PLAN.md
+TODO.md
+
+# Temp files
+*.tmp
+*.temp
+*.bak
+*.swp
