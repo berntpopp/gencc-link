@@ -177,6 +177,15 @@ class TestCitationByMode:
         out = await run_mcp_tool("t", body, response_mode="minimal")
         assert out["_meta"]["citation_ref"] == "gencc://citation"
 
+    async def test_standard_uses_citation_ref(self) -> None:
+        async def body() -> dict[str, Any]:
+            return {}
+
+        out = await run_mcp_tool("t", body, response_mode="standard")
+        assert out["_meta"]["citation_ref"] == "gencc://citation"
+        assert out["_meta"]["citation_short"]
+        assert "recommended_citation" not in out["_meta"]
+
     async def test_full_uses_full_citation(self) -> None:
         async def body() -> dict[str, Any]:
             return {}
@@ -216,3 +225,35 @@ class TestErrorNextCommands:
     async def test_no_recovery_omits_next_commands(self) -> None:
         out = await run_mcp_tool("t", _raiser(RuntimeError("boom")))
         assert "next_commands" not in out["_meta"]
+
+
+def _make_validation_error():
+    from pydantic import BaseModel, ValidationError
+
+    class _M(BaseModel):
+        response_mode: str
+
+    try:
+        _M(response_mode=["not", "a", "str"])  # type: ignore[arg-type]
+    except ValidationError as exc:
+        return exc
+    raise AssertionError("expected ValidationError")
+
+
+def test_validation_error_envelope_shape() -> None:
+    from gencc_link.mcp.envelope import validation_error_envelope
+
+    env = validation_error_envelope(
+        tool_name="get_gene_disease_assertion",
+        arguments={"response_mode": "ultra"},
+        exc=_make_validation_error(),
+    )
+    assert env["success"] is False
+    assert env["error_code"] == "invalid_input"
+    assert env["retryable"] is False
+    assert env["recovery_action"] == "reformulate_input"
+    assert env["field_errors"]
+    assert env["_meta"]["tool"] == "get_gene_disease_assertion"
+    assert env["_meta"]["next_commands"]
+    assert isinstance(env["_meta"]["request_id"], str)
+    assert "elapsed_ms" in env["_meta"]

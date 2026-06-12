@@ -5,6 +5,7 @@ from __future__ import annotations
 from fastmcp import FastMCP
 
 from gencc_link.mcp.capabilities import register_capability_resources
+from gencc_link.mcp.middleware import InputValidationMiddleware
 from gencc_link.mcp.resources import GENCC_SERVER_INSTRUCTIONS
 from gencc_link.mcp.tools import (
     register_assertion_tools,
@@ -22,6 +23,9 @@ def create_gencc_mcp() -> FastMCP:
         instructions=GENCC_SERVER_INSTRUCTIONS,
         mask_error_details=True,
     )
+    # Error-handling middleware goes first so it wraps every tool call and can
+    # turn pre-body argument-validation failures into a structured envelope.
+    mcp.add_middleware(InputValidationMiddleware())
 
     register_discovery_tools(mcp)
     register_gene_tools(mcp)

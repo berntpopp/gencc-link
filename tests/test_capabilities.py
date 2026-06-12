@@ -99,8 +99,19 @@ class TestEvalAdditions:
 
     def test_response_fields_document_new_fields(self) -> None:
         caps = build_capabilities()
-        for field in ("matched", "citation_ref", "request_id"):
+        for field in (
+            "matched",
+            "citation_ref",
+            "request_id",
+            "field_errors",
+            "cursor",
+            "next_cursor",
+        ):
             assert field in caps["response_fields"]
+
+    def test_research_use_resource_listed(self) -> None:
+        caps = build_capabilities()
+        assert "gencc://research-use" in caps["resources"]
 
     def test_capabilities_version_stable_vs_live_data(self) -> None:
         # Data-derived additions live outside the hashed static surface.

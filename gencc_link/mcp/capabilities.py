@@ -121,6 +121,14 @@ def _static_surface() -> dict[str, Any]:
             "server-side timing on every envelope",
             "matched": "find_curations: the submission(s) that satisfied a submission-level "
             "classification/submitter/moi filter (compact/standard/full)",
+            "field_errors": "invalid_input only: a list of {field, reason} objects "
+            "pinpointing each rejected argument (schema-level and domain validation).",
+            "cursor": "find_curations only: an opaque, release-bound page token from a "
+            "prior truncated.next_cursor; reproduces the exact next page and is rejected "
+            "if the data was refreshed since it was minted.",
+            "next_cursor": "find_curations truncated block: the opaque cursor to pass back "
+            "as `cursor` for refresh-safe page-forward (also the first "
+            "_meta.next_commands entry).",
             "has_conflict": "true when supporting and against assertions coexist for a pair",
             "submitted_as_date_iso": "per-submitter/submission: submitted_as_date "
             "normalized to an ISO-8601 date (YYYY-MM-DD); the verbatim "
@@ -139,6 +147,7 @@ def _static_surface() -> dict[str, Any]:
             "gencc://reference": "classification ranks, error taxonomy, field glossary",
             "gencc://license": "CC0 license + attribution + OMIM restriction note",
             "gencc://citation": "recommended citation",
+            "gencc://research-use": "research-use-only notice",
         },
         "response_modes_list": list(RESPONSE_MODES),
         "citation": RECOMMENDED_CITATION,

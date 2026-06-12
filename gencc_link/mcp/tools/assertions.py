@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING, Annotated, Any
 
 from pydantic import Field
 
+from gencc_link.exceptions import InvalidInputError
 from gencc_link.mcp.annotations import READ_ONLY_OPEN_WORLD
 from gencc_link.mcp.envelope import McpErrorContext, run_mcp_tool
 from gencc_link.mcp.next_commands import after_assertion, cmd
@@ -81,7 +82,11 @@ def register_assertion_tools(mcp: FastMCP) -> None:
             "(case-insensitive); out-of-vocabulary values return invalid_input "
             "with the accepted set (see get_server_capabilities / list_submitters). "
             "Pass ids_only=true to return only {gene_curie, disease_curie} pairs for "
-            "cheap paging, then fetch detail for the pairs you want."
+            "cheap paging, then fetch detail for the pairs you want. "
+            "Large sweeps: follow truncated.next_cursor (an opaque, release-bound "
+            "page token) via _meta.next_commands to page the full set; a cursor "
+            "minted under a prior data release is rejected so a weekly refresh "
+            "can't silently skip or duplicate rows."
         ),
     )
     async def find_curations(
@@ -95,6 +100,7 @@ def register_assertion_tools(mcp: FastMCP) -> None:
         ids_only: bool = False,
         limit: int = 50,
         offset: int = 0,
+        cursor: str | None = None,
     ) -> dict[str, Any]:
         async def call() -> dict[str, Any]:
             payload = get_gencc_service().find_curations(
@@ -108,8 +114,14 @@ def register_assertion_tools(mcp: FastMCP) -> None:
                 ids_only=ids_only,
                 limit=limit,
                 offset=offset,
+                cursor=cursor,
             )
             nexts: list[dict[str, Any]] = []
+            trunc = payload.get("truncated") or {}
+            if trunc.get("next_cursor"):
+                # Page-forward first so an agent following next_commands[0]
+                # sweeps the full result set autonomously (refresh-safe).
+                nexts.append(cmd("find_curations", cursor=trunc["next_cursor"]))
             results = payload.get("results", [])
             if results:
                 top = results[0]
@@ -140,12 +152,20 @@ def register_assertion_tools(mcp: FastMCP) -> None:
             "Resolve free text to a canonical GenCC gene (HGNC) and/or disease "
             "(MONDO) identifier by exact symbol/id/title match. Use kind='gene' or "
             "kind='disease' to disambiguate; default 'auto' tries both and returns "
-            "ambiguous_query if the text matches both a gene and a disease."
+            "ambiguous_query if the text matches both a gene and a disease. "
+            "Accepts query or its alias identifier."
         ),
     )
-    async def resolve_identifier(query: str, kind: str = "auto") -> dict[str, Any]:
+    async def resolve_identifier(
+        query: str | None = None,
+        kind: str = "auto",
+        identifier: str | None = None,
+    ) -> dict[str, Any]:
         async def call() -> dict[str, Any]:
-            payload = get_gencc_service().resolve_identifier(query, kind=kind)
+            q = query if query is not None else identifier
+            if q is None:
+                raise InvalidInputError("query must not be empty.", field="query")
+            payload = get_gencc_service().resolve_identifier(q, kind=kind)
             nexts: list[dict[str, Any]] = []
             if payload.get("gene"):
                 nexts.append(cmd("get_gene_curations", gene=payload["gene"]["gene_curie"]))
@@ -159,5 +179,7 @@ def register_assertion_tools(mcp: FastMCP) -> None:
         return await run_mcp_tool(
             "resolve_identifier",
             call,
-            context=McpErrorContext("resolve_identifier", arguments={"query": query}),
+            context=McpErrorContext(
+                "resolve_identifier", arguments={"query": query or identifier or ""}
+            ),
         )

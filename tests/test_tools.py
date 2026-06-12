@@ -251,6 +251,134 @@ class TestEvalHardening:
         assert "recommended_citation" in meta
         assert "citation_short" not in meta
 
+    async def test_standard_uses_citation_ref_not_full(self, mcp_client) -> None:
+        result = await mcp_client.call_tool(
+            "get_gene_curations", {"gene": "SKI", "response_mode": "standard"}
+        )
+        meta = result.structured_content["_meta"]
+        assert meta["citation_ref"] == "gencc://citation"
+        assert meta["citation_short"] == "GenCC (thegencc.org), CC0-1.0"
+        assert "recommended_citation" not in meta
+
+    async def test_assertion_minimal_omits_submitters(self, mcp_client) -> None:
+        result = await mcp_client.call_tool(
+            "get_gene_disease_assertion",
+            {"gene": "GLA", "disease": "MONDO:0010526", "response_mode": "minimal"},
+        )
+        a = result.structured_content["assertion"]
+        assert "submitters" not in a
+        assert "submitter_titles" not in a  # that's a compact-only field
+        assert a["strongest_classification"]
+        assert "has_conflict" in a
+
+    async def test_assertion_mode_size_ladder(self, mcp_client) -> None:
+        import json
+
+        async def assertion(mode: str) -> dict:
+            r = await mcp_client.call_tool(
+                "get_gene_disease_assertion",
+                {"gene": "GLA", "disease": "MONDO:0010526", "response_mode": mode},
+            )
+            return r.structured_content["assertion"]
+
+        a_min = await assertion("minimal")
+        a_com = await assertion("compact")
+        a_std = await assertion("standard")
+        a_full = await assertion("full")
+        # minimal keys are a strict subset of compact; size grows monotonically.
+        assert set(a_min) < set(a_com)
+        sizes = [len(json.dumps(a)) for a in (a_min, a_com, a_std, a_full)]
+        assert sizes == sorted(sizes) and len(set(sizes)) == 4  # strictly increasing
+
+    async def test_capabilities_documents_field_errors_and_cursor(self, mcp_client) -> None:
+        result = await mcp_client.call_tool("get_server_capabilities", {})
+        rf = result.structured_content["response_fields"]
+        assert "field_errors" in rf
+        assert "next_cursor" in rf
+        assert "cursor" in rf
+        resources = result.structured_content["resources"]
+        assert "gencc://research-use" in resources
+
+    async def test_resolve_identifier_ambiguous_query(
+        self, mcp_client, service, monkeypatch
+    ) -> None:
+        # Make "SKI" resolve as BOTH a gene and a disease to exercise the
+        # ambiguous_query path end-to-end (no fixture change).
+        a_disease = service._repo.resolve_disease("MONDO:0008426")
+        orig = service._repo.resolve_disease
+
+        def both(ident: str):
+            return a_disease if ident.strip().casefold() == "ski" else orig(ident)
+
+        monkeypatch.setattr(service._repo, "resolve_disease", both)
+        result = await mcp_client.call_tool("resolve_identifier", {"query": "SKI"})
+        data = result.structured_content
+        assert data["success"] is False
+        assert data["error_code"] == "ambiguous_query"
+        tools = {c["tool"] for c in data["_meta"]["next_commands"]}
+        assert tools == {"get_gene_curations", "get_disease_curations"}
+
+    async def test_find_curations_pages_forward_with_cursor(self, mcp_client) -> None:
+        first = await mcp_client.call_tool(
+            "find_curations", {"classification": ["Definitive"], "limit": 2}
+        )
+        d1 = first.structured_content
+        assert "next_cursor" in d1["truncated"]
+        cont = d1["_meta"]["next_commands"][0]
+        assert cont["tool"] == "find_curations"
+        assert "cursor" in cont["arguments"]
+        # follow the continuation
+        second = await mcp_client.call_tool("find_curations", cont["arguments"])
+        d2 = second.structured_content
+        assert d2["success"] is True
+        ids1 = {(r["gene_curie"], r["disease_curie"]) for r in d1["results"]}
+        ids2 = {(r["gene_curie"], r["disease_curie"]) for r in d2["results"]}
+        assert ids1.isdisjoint(ids2)
+
+    async def test_invalid_response_mode_is_structured(self, mcp_client) -> None:
+        result = await mcp_client.call_tool(
+            "get_gene_disease_assertion",
+            {"gene": "SKI", "disease": "MONDO:0008426", "response_mode": "ultra"},
+        )
+        data = result.structured_content
+        assert data["success"] is False
+        assert data["error_code"] == "invalid_input"
+        assert data["field_errors"]
+        assert data["_meta"]["next_commands"][0]["tool"] == "get_server_capabilities"
+        assert isinstance(data["_meta"]["request_id"], str)
+
+    async def test_unknown_argument_is_structured(self, mcp_client) -> None:
+        result = await mcp_client.call_tool("search_genes", {"identifier": "SKI"})
+        data = result.structured_content
+        assert data["success"] is False
+        assert data["error_code"] == "invalid_input"
+        assert data["_meta"]["next_commands"]
+
+    async def test_resolve_identifier_alias(self, mcp_client) -> None:
+        result = await mcp_client.call_tool("resolve_identifier", {"identifier": "SKI"})
+        data = result.structured_content
+        assert data["success"] is True
+        assert data["gene"]["gene_symbol"] == "SKI"
+
+    async def test_empty_and_overcap_errors_are_chainable(self, mcp_client) -> None:
+        # empty query
+        r1 = await mcp_client.call_tool("search_genes", {"query": "   "})
+        d1 = r1.structured_content
+        assert d1["success"] is False and d1["error_code"] == "invalid_input"
+        assert d1["_meta"]["next_commands"], "empty-query error must be chainable"
+        # >20 batch
+        r2 = await mcp_client.call_tool(
+            "get_genes_curations", {"genes": [f"G{i}" for i in range(21)]}
+        )
+        d2 = r2.structured_content
+        assert d2["success"] is False and d2["error_code"] == "invalid_input"
+        assert d2["_meta"]["next_commands"], ">20 batch error must be chainable"
+        # no-filter find_curations
+        r3 = await mcp_client.call_tool("find_curations", {})
+        d3 = r3.structured_content
+        assert d3["success"] is False
+        assert d3["_meta"]["next_commands"], "no-filter find_curations must be chainable"
+
 
 class TestBatchTools:
     async def test_genes_curations_multi(self, mcp_client) -> None:

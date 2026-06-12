@@ -136,8 +136,13 @@ def recovery_commands(
     if error_code == "invalid_input":
         if field == "submitter":
             return [cmd("list_submitters")]
-        if field in ("classification", "moi"):
-            return [cmd("get_server_capabilities")]
+        if field == "cursor":
+            return [cmd("get_gencc_diagnostics"), cmd("get_server_capabilities")]
+        # classification, moi, response_mode, empty query, >20 batch, bad
+        # offset/limit, no-filter find_curations: the authoritative parameter
+        # contract is get_server_capabilities. Guarantees every invalid_input
+        # envelope is chainable (capabilities promises next_commands on errors).
+        return [cmd("get_server_capabilities")]
     if error_code == "data_unavailable":
         return [cmd("get_gencc_diagnostics")]
     return []

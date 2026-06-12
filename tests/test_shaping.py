@@ -265,6 +265,26 @@ class TestTruncationBlock:
         assert block is not None
         assert block["next_offset"] == offset + limit
 
+    def test_no_cursor_without_context(self) -> None:
+        block = shaping.truncation_block(100, 50, 0)
+        assert block is not None
+        assert "next_cursor" not in block
+
+    def test_mints_next_cursor_with_context(self) -> None:
+        from gencc_link.services.cursor import decode_cursor
+
+        block = shaping.truncation_block(
+            100,
+            50,
+            0,
+            cursor_context={"release": "2026-06-07", "filters": {"has_conflict": True}},
+        )
+        assert block is not None
+        decoded = decode_cursor(block["next_cursor"])
+        assert decoded["o"] == 50
+        assert decoded["r"] == "2026-06-07"
+        assert decoded["flt"]["has_conflict"] is True
+
 
 class TestOmitParentId:
     def test_omit_gene_compact_drops_gene_keeps_disease(self) -> None:

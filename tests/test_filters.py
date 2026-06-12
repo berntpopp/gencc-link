@@ -75,6 +75,28 @@ class TestMoi:
         assert m == "Y-linked inheritance"
 
 
+SUGGEST_OPTIONS = ["Autosomal dominant", "Autosomal recessive", "X-linked recessive"]
+
+
+class TestSuggest:
+    def test_case_insensitive_prefers_autosomal_recessive(self) -> None:
+        from gencc_link.services.filters import _suggest
+
+        msg = _suggest("Recessive", SUGGEST_OPTIONS)
+        assert "Autosomal recessive" in msg
+
+    def test_offers_multiple_close_matches(self) -> None:
+        from gencc_link.services.filters import _suggest
+
+        msg = _suggest("recessive", SUGGEST_OPTIONS)
+        assert "Autosomal recessive" in msg and "X-linked recessive" in msg
+
+    def test_no_match_is_empty(self) -> None:
+        from gencc_link.services.filters import _suggest
+
+        assert _suggest("zzzzz", SUGGEST_OPTIONS) == ""
+
+
 def test_all_none_passes_through() -> None:
     assert _run() == (None, None, None)
 

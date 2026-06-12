@@ -29,8 +29,8 @@ with consensus and conflict detection.
 - **Three transports** from one codebase: `unified` (REST + MCP), `http`, `stdio`.
 - **Agent-discoverable** — `gencc://` capabilities (with `inheritance_modes`,
   `data_notes`), usage, reference, license, and citation resources; typed error
-  envelopes; `recommended_citation` (or a cacheable `citation_ref` in
-  minimal/compact).
+  envelopes; full `recommended_citation` in `full` mode, or a cacheable
+  `citation_ref` + one-line `citation_short` otherwise.
 
 ## Data source & license
 
@@ -145,7 +145,7 @@ Or run stdio from a checkout with `uv` (no install step):
 | `get_genes_curations` | Batch `get_gene_curations`: up to 20 genes in one call (misses in `unresolved`) |
 | `get_diseases_curations` | Batch `get_disease_curations`: up to 20 diseases in one call (misses in `unresolved`) |
 | `get_gene_disease_assertion` | One pair: per-submitter classifications, MOI, PMIDs, URLs + conflict analysis |
-| `find_curations` | Filter assertions by classification/submitter/MOI/conflict (`ids_only` for cheap paging) |
+| `find_curations` | Filter assertions by classification/submitter/MOI/conflict (`ids_only` for cheap paging; `cursor` for refresh-safe autonomous page-forward) |
 | `list_submitters` | Submitting organizations + counts |
 | `resolve_identifier` | Map free text to canonical HGNC/MONDO ids |
 

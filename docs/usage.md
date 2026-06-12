@@ -132,9 +132,10 @@ conflict.
 ## Citation contract
 
 Every factual claim derived from GenCC must carry the recommended citation. It is
-returned verbatim in `_meta.recommended_citation` (in `standard`/`full`) and from
+returned verbatim in `_meta.recommended_citation` (in `full` mode) and from
 the `gencc://citation` resource — paste it as-is, do not paraphrase. In
-`minimal`/`compact` the envelope returns `_meta.citation_ref = "gencc://citation"`
+`minimal`/`compact`/`standard` the envelope returns
+`_meta.citation_ref = "gencc://citation"` plus a one-line `citation_short`
 instead; read that resource once and reuse the string:
 
 > DiStefano MT, Goehringer S, Babb L, et al. The Gene Curation Coalition: A

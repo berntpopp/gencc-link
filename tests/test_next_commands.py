@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import pytest
+
 from gencc_link.mcp import next_commands as nc
 
 
@@ -159,8 +161,28 @@ class TestRecoveryCommands:
     def test_unknown_returns_empty(self) -> None:
         assert nc.recovery_commands("list_submitters", "internal_error", {}, None) == []
 
-    def test_invalid_no_field_returns_empty(self) -> None:
-        assert nc.recovery_commands("search_genes", "invalid_input", {}, None) == []
+    def test_invalid_no_field_points_to_capabilities(self) -> None:
+        # D2b: every invalid_input is chainable, even with no specific field.
+        out = nc.recovery_commands("search_genes", "invalid_input", {}, None)
+        assert out == [{"tool": "get_server_capabilities", "arguments": {}}]
+
+    @pytest.mark.parametrize(
+        "tool, field",
+        [
+            ("search_genes", "query"),
+            ("get_genes_curations", "genes"),
+            ("get_diseases_curations", "diseases"),
+            ("find_curations", None),
+            ("find_curations", "offset"),
+            ("get_gene_disease_assertion", "response_mode"),
+        ],
+    )
+    def test_invalid_input_always_has_recovery(self, tool: str, field: str | None) -> None:
+        assert nc.recovery_commands(tool, "invalid_input", {}, field), f"{tool}/{field} bare"
+
+    def test_cursor_drift_routes_to_diagnostics(self) -> None:
+        out = nc.recovery_commands("find_curations", "invalid_input", {}, "cursor")
+        assert out[0]["tool"] == "get_gencc_diagnostics"
 
     def test_ambiguous_query_resolve(self) -> None:
         out = nc.recovery_commands(
