@@ -35,8 +35,11 @@ def register_assertion_tools(mcp: FastMCP) -> None:
         description=(
             "Deep dive on one gene-disease pair: every submitter's classification, "
             "mode of inheritance, evidence report URL, criteria URL, PMIDs, and "
-            "dates, plus the consensus classification and conflict analysis. Pass "
-            "response_mode=full for raw submission rows including notes."
+            "dates, plus the consensus classification and conflict analysis. "
+            "response_mode=full adds, alongside the harmonized submitters[], a "
+            "raw-extras submissions[] array (sgc_id, notes, original disease ids, "
+            "version) -- not the fields already in submitters[], and with no "
+            "pair-level union pmids; correlate a row to a submitter via submitter_title."
         ),
     )
     async def get_gene_disease_assertion(

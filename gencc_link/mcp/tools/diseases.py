@@ -44,7 +44,8 @@ def register_disease_tools(mcp: FastMCP) -> None:
             "Search the GenCC disease catalog by harmonized title (natural-language "
             "ok, porter-stemmed), MONDO id, or OMIM id. Returns ranked diseases with "
             "gene/submitter counts. Use to resolve free text before "
-            "get_disease_curations."
+            "get_disease_curations. Page large result sets via the release-bound "
+            "truncated.next_cursor (surfaced as _meta.next_commands[0])."
         ),
     )
     async def search_diseases(
@@ -83,7 +84,8 @@ def register_disease_tools(mcp: FastMCP) -> None:
         description=(
             "Return all genes asserted for one disease (by MONDO/OMIM id or title), "
             "each with a consensus classification across submitters and a conflict "
-            "flag. Widen response_mode for the per-submitter breakdown."
+            "flag. Widen response_mode for the per-submitter breakdown. Page via the "
+            "release-bound truncated.next_cursor (surfaced as _meta.next_commands[0])."
         ),
     )
     async def get_disease_curations(

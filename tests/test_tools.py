@@ -327,6 +327,20 @@ class TestEvalHardening:
         sizes = [len(json.dumps(a)) for a in (a_min, a_com, a_std, a_full)]
         assert sizes == sorted(sizes) and len(set(sizes)) == 4  # strictly increasing
 
+    async def test_capabilities_documents_defaults_and_conflict(self, mcp_client) -> None:
+        sc = (await mcp_client.call_tool("get_server_capabilities", {})).structured_content
+        assert sc["tool_defaults"]["get_gene_disease_assertion"] == "standard"
+        assert sc["tool_defaults"]["search_genes"] == "compact"
+        cs = sc["conflict_semantics"]
+        assert set(cs["supporting"]) == {"Definitive", "Strong", "Moderate"}
+        assert "No Known Disease Relationship" in cs["against"]
+        assert "Animal Model Only" in cs["excluded"]
+        codes = {e["code"]: e for e in sc["error_codes"]}
+        assert codes["data_unavailable"]["operational_only"] is True
+        assert codes["invalid_input"]["operational_only"] is False
+        assert sc["error_codes_list"]  # back-compat flat list retained
+        assert "ambiguous_query_example" in sc
+
     async def test_capabilities_documents_field_errors_and_cursor(self, mcp_client) -> None:
         result = await mcp_client.call_tool("get_server_capabilities", {})
         rf = result.structured_content["response_fields"]

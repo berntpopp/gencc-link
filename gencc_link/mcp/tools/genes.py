@@ -44,7 +44,8 @@ def register_gene_tools(mcp: FastMCP) -> None:
             "Search the GenCC gene catalog by approved symbol, partial symbol, or "
             "HGNC id. Returns ranked genes with assertion roll-ups (number of "
             "diseases, submitters, strongest classification, conflict flag). Use to "
-            "resolve free text before get_gene_curations."
+            "resolve free text before get_gene_curations. Page large result sets via "
+            "the release-bound truncated.next_cursor (surfaced as _meta.next_commands[0])."
         ),
     )
     async def search_genes(
@@ -86,7 +87,8 @@ def register_gene_tools(mcp: FastMCP) -> None:
             "Return all GenCC gene-disease validity assertions for one gene "
             "(by symbol or HGNC id), grouped by disease, each with a consensus "
             "classification across submitters and a conflict flag. Widen "
-            "response_mode for the per-submitter breakdown."
+            "response_mode for the per-submitter breakdown. Page via the "
+            "release-bound truncated.next_cursor (surfaced as _meta.next_commands[0])."
         ),
     )
     async def get_gene_curations(

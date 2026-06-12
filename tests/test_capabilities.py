@@ -39,7 +39,27 @@ class TestBuildCapabilities:
     def test_error_codes(self) -> None:
         caps = build_capabilities()
         for code in ("invalid_input", "not_found", "data_unavailable", "internal_error"):
-            assert code in caps["error_codes"]
+            assert code in caps["error_codes_list"]
+        # annotated form: operational-only codes marked, query-reachable codes not
+        codes = {e["code"]: e for e in caps["error_codes"]}
+        assert codes["data_unavailable"]["operational_only"] is True
+        assert codes["upstream_unavailable"]["operational_only"] is True
+        assert codes["rate_limited"]["operational_only"] is True
+        assert codes["invalid_input"]["operational_only"] is False
+        assert codes["ambiguous_query"]["operational_only"] is False
+
+    def test_tool_defaults_and_conflict_semantics(self) -> None:
+        caps = build_capabilities()
+        td = caps["tool_defaults"]
+        assert td["get_gene_disease_assertion"] == "standard"
+        assert td["search_genes"] == "compact" and td["find_curations"] == "compact"
+        cs = caps["conflict_semantics"]
+        assert set(cs["supporting"]) == {"Definitive", "Strong", "Moderate"}
+        assert "No Known Disease Relationship" in cs["against"]
+        assert "Refuted Evidence" in cs["against"]
+        assert "Animal Model Only" in cs["excluded"]
+        assert "Supportive" in cs["excluded"] and "Limited" in cs["excluded"]
+        assert "ambiguous_query_example" in caps
 
     def test_capabilities_version_16_hex(self) -> None:
         caps = build_capabilities()
@@ -106,8 +126,14 @@ class TestEvalAdditions:
             "field_errors",
             "cursor",
             "next_cursor",
+            "received",
+            "duplicates",
+            "tool_defaults",
+            "conflict_semantics",
         ):
             assert field in caps["response_fields"]
+        # cursor is now general, not find_curations-only
+        assert "all paged tools" in caps["response_fields"]["cursor"].lower()
 
     def test_research_use_resource_listed(self) -> None:
         caps = build_capabilities()
