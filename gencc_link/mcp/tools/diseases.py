@@ -13,6 +13,11 @@ from gencc_link.mcp.next_commands import (
     after_diseases_curations,
     after_search_diseases,
 )
+from gencc_link.mcp.schemas import (
+    DISEASE_CURATIONS_SCHEMA,
+    DISEASES_CURATIONS_SCHEMA,
+    SEARCH_DISEASES_SCHEMA,
+)
 from gencc_link.mcp.service_adapters import get_gencc_service
 from gencc_link.models.enums import ResponseMode
 
@@ -32,6 +37,7 @@ def register_disease_tools(mcp: FastMCP) -> None:
         name="search_diseases",
         title="Search GenCC Diseases",
         annotations=READ_ONLY_OPEN_WORLD,
+        output_schema=SEARCH_DISEASES_SCHEMA,
         tags={"disease", "search"},
         description=(
             "Search the GenCC disease catalog by harmonized title (natural-language "
@@ -65,6 +71,7 @@ def register_disease_tools(mcp: FastMCP) -> None:
         name="get_disease_curations",
         title="Get Disease Curations",
         annotations=READ_ONLY_OPEN_WORLD,
+        output_schema=DISEASE_CURATIONS_SCHEMA,
         tags={"disease"},
         description=(
             "Return all genes asserted for one disease (by MONDO/OMIM id or title), "
@@ -98,6 +105,7 @@ def register_disease_tools(mcp: FastMCP) -> None:
         name="get_diseases_curations",
         title="Get Curations for Many Diseases",
         annotations=READ_ONLY_OPEN_WORLD,
+        output_schema=DISEASES_CURATIONS_SCHEMA,
         tags={"disease", "batch"},
         description=(
             "Batch form of get_disease_curations: pass a list of disease ids or "

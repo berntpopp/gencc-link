@@ -43,6 +43,19 @@ async def test_list_resources(mcp_client) -> None:
     assert uris == EXPECTED_RESOURCES
 
 
+async def test_all_tools_advertise_typed_output_schema(mcp_client) -> None:
+    tools = await mcp_client.list_tools()
+    assert tools
+    for t in tools:
+        schema = t.outputSchema
+        assert schema is not None, t.name
+        props = schema.get("properties", {})
+        assert "success" in props, t.name
+        assert "_meta" in props, t.name
+        # at least one tool-specific top-level field beyond the envelope
+        assert len(props) > 3, t.name
+
+
 async def test_search_genes_success(mcp_client) -> None:
     result = await mcp_client.call_tool("search_genes", {"query": "SKI"})
     data = result.structured_content
