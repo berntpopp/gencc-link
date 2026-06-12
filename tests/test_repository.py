@@ -274,6 +274,22 @@ class TestFindMatched:
         assert matched == {}
         assert total == len(page)
 
+    def test_submission_filter_covering_indexes(self, repository: GenCCRepository) -> None:
+        index_sql = {
+            row[0]: row[1] or ""
+            for row in repository._conn.execute(
+                "SELECT name, sql FROM sqlite_master WHERE type='index' AND name LIKE 'idx_sub_%'"
+            )
+        }
+        # New covering indexes for submitter-title and case-insensitive moi filters.
+        assert "idx_sub_submitter_title" in index_sql
+        assert "idx_sub_moi_nocase" in index_sql
+        # Each covers the projected (gene_curie, disease_curie) pair so the DISTINCT
+        # pair scan in find.matching_pairs is index-only.
+        assert "gene_curie" in index_sql["idx_sub_submitter_title"]
+        assert "disease_curie" in index_sql["idx_sub_moi_nocase"]
+        assert "gene_curie" in index_sql["idx_sub_classification"]
+
 
 class TestSubmitters:
     def test_list_submitters_ordering(self, repository: GenCCRepository) -> None:

@@ -45,9 +45,16 @@ CREATE INDEX idx_sub_gene_curie ON submissions(gene_curie);
 CREATE INDEX idx_sub_gene_symbol ON submissions(gene_symbol);
 CREATE INDEX idx_sub_disease_curie ON submissions(disease_curie);
 CREATE INDEX idx_sub_submitter ON submissions(submitter_curie);
-CREATE INDEX idx_sub_classification ON submissions(classification_title);
 CREATE INDEX idx_sub_moi ON submissions(moi_title);
 CREATE INDEX idx_sub_gene_disease ON submissions(gene_curie, disease_curie);
+-- Covering indexes for find_curations: the leading filter column plus the
+-- projected (gene_curie, disease_curie) pair, so resolving the matching pairs
+-- (find.matching_pairs) is an index-only scan + adjacent DISTINCT rather than a
+-- table scan with row lookups. idx_sub_classification also serves plain
+-- classification_title equality (the column is the index prefix).
+CREATE INDEX idx_sub_classification ON submissions(classification_title, gene_curie, disease_curie);
+CREATE INDEX idx_sub_submitter_title ON submissions(submitter_title, gene_curie, disease_curie);
+CREATE INDEX idx_sub_moi_nocase ON submissions(moi_title COLLATE NOCASE, gene_curie, disease_curie);
 
 -- Derived gene catalog.
 CREATE TABLE genes (

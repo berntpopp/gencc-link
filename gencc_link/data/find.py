@@ -152,7 +152,12 @@ def gene_disease_page(
         clauses.append("has_conflict = ?")
         params.append(1 if has_conflict else 0)
     where = (" WHERE " + " AND ".join(clauses)) if clauses else ""
-    total = int(conn.execute(f"SELECT COUNT(*) FROM gene_disease{where}", params).fetchone()[0])
+    if pairs is not None and has_conflict is None:
+        # Every distinct submission pair has exactly one gene_disease row, so the
+        # total equals the pair count -- skip the COUNT query for this hot path.
+        total = len(pairs)
+    else:
+        total = int(conn.execute(f"SELECT COUNT(*) FROM gene_disease{where}", params).fetchone()[0])
     page = conn.execute(
         f"SELECT * FROM gene_disease{where} "
         "ORDER BY consensus_rank DESC, gene_symbol, disease_title LIMIT ? OFFSET ?",
