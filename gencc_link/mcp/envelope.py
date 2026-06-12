@@ -62,16 +62,33 @@ class McpToolError(Exception):
         self.message = message
 
 
-def _provenance_meta(response_mode: str | None = None) -> dict[str, Any]:
-    """Provenance block for ``_meta``; mode-aware citation to cut per-call tokens."""
-    meta: dict[str, Any] = {
-        "unsafe_for_clinical_use": True,
-        "data_license": DATA_LICENSE,
-    }
-    if response_mode in ("minimal", "compact", "standard"):
+def _provenance_meta(response_mode: str | None = None, *, is_error: bool = False) -> dict[str, Any]:
+    """Provenance block for ``_meta``; mode-aware to cut per-call tokens.
+
+    Policy (see docs/superpowers/specs/2026-06-12-mcp-consumer-uplift-v0.4.0):
+
+    - ``unsafe_for_clinical_use`` rides *every* envelope (safety; non-negotiable
+      for a clinical-adjacent dataset).
+    - Errors carry only ``citation_ref`` -- an error has no claim to cite, so the
+      verbatim citation (and even ``citation_short``) is pure boilerplate.
+    - ``full`` is the maximum-detail mode: it keeps the verbatim
+      ``recommended_citation`` and the session-invariant ``data_license``.
+    - ``minimal``/``compact``/``standard`` carry ``citation_ref`` +
+      ``citation_short`` (the short stub already encodes the CC0 license, so
+      ``data_license`` is redundant there and is omitted -- it lives in the
+      capabilities contract).
+    - ``gencc_release`` (per-call freshness) rides every success envelope.
+    """
+    meta: dict[str, Any] = {"unsafe_for_clinical_use": True}
+    if is_error:
+        meta["citation_ref"] = _CITATION_REF
+    elif response_mode == "full":
+        meta["data_license"] = DATA_LICENSE
+        meta["recommended_citation"] = RECOMMENDED_CITATION
+    elif response_mode in ("minimal", "compact", "standard"):
         meta["citation_ref"] = _CITATION_REF
         meta["citation_short"] = CITATION_SHORT
-    else:  # full (and the unset/error default) keep the verbatim citation
+    else:  # unset success default (rare): keep a safe verbatim citation
         meta["recommended_citation"] = RECOMMENDED_CITATION
     if response_mode:
         meta["response_mode"] = response_mode
@@ -146,7 +163,7 @@ def _error_envelope(
         errs = exc.errors()
         if errs and errs[0]["loc"]:
             field_name = str(errs[0]["loc"][-1])
-    meta: dict[str, Any] = {"tool": context.tool_name, **_provenance_meta()}
+    meta: dict[str, Any] = {"tool": context.tool_name, **_provenance_meta(is_error=True)}
     meta["request_id"] = request_id
     meta["elapsed_ms"] = elapsed_ms
     nexts = recovery_commands(context.tool_name, error_code, context.arguments, field_name)

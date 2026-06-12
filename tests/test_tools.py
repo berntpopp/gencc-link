@@ -277,6 +277,26 @@ class TestEvalHardening:
         assert meta["citation_short"] == "GenCC (thegencc.org), CC0-1.0"
         assert "recommended_citation" not in meta
 
+    async def test_error_envelope_uses_citation_ref_not_full(self, mcp_client) -> None:
+        result = await mcp_client.call_tool("search_genes", {"query": ""})
+        data = result.structured_content
+        assert data["success"] is False and data["error_code"] == "invalid_input"
+        meta = data["_meta"]
+        assert meta["citation_ref"] == "gencc://citation"
+        assert "recommended_citation" not in meta
+        assert "citation_short" not in meta
+        assert meta["unsafe_for_clinical_use"] is True
+
+    async def test_data_license_only_in_full(self, mcp_client) -> None:
+        compact = await mcp_client.call_tool(
+            "get_gene_curations", {"gene": "SKI", "response_mode": "compact"}
+        )
+        assert "data_license" not in compact.structured_content["_meta"]
+        full = await mcp_client.call_tool(
+            "get_gene_curations", {"gene": "SKI", "response_mode": "full"}
+        )
+        assert full.structured_content["_meta"]["data_license"] == "CC0-1.0"
+
     async def test_assertion_minimal_omits_submitters(self, mcp_client) -> None:
         result = await mcp_client.call_tool(
             "get_gene_disease_assertion",
