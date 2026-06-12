@@ -56,7 +56,10 @@ def register_assertion_tools(mcp: FastMCP) -> None:
         return await run_mcp_tool(
             "get_gene_disease_assertion",
             call,
-            context=McpErrorContext("get_gene_disease_assertion"),
+            context=McpErrorContext(
+                "get_gene_disease_assertion", arguments={"gene": gene, "disease": disease}
+            ),
+            response_mode=response_mode,
         )
 
     @mcp.tool(
@@ -109,7 +112,12 @@ def register_assertion_tools(mcp: FastMCP) -> None:
             payload["_meta"] = {"next_commands": nexts}
             return payload
 
-        return await run_mcp_tool("find_curations", call, context=McpErrorContext("find_curations"))
+        return await run_mcp_tool(
+            "find_curations",
+            call,
+            context=McpErrorContext("find_curations", arguments={}),
+            response_mode=response_mode,
+        )
 
     @mcp.tool(
         name="resolve_identifier",
@@ -136,5 +144,7 @@ def register_assertion_tools(mcp: FastMCP) -> None:
             return payload
 
         return await run_mcp_tool(
-            "resolve_identifier", call, context=McpErrorContext("resolve_identifier")
+            "resolve_identifier",
+            call,
+            context=McpErrorContext("resolve_identifier", arguments={"query": query}),
         )

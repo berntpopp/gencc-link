@@ -46,7 +46,8 @@ async def test_search_genes_success(mcp_client) -> None:
     data = result.structured_content
     assert data["success"] is True
     assert "next_commands" in data["_meta"]
-    assert data["_meta"]["recommended_citation"]
+    # compact (default) swaps the full citation for a cacheable ref
+    assert data["_meta"]["citation_ref"] == "gencc://citation"
 
 
 async def test_search_diseases_success(mcp_client) -> None:
@@ -62,7 +63,7 @@ async def test_get_gene_curations_success(mcp_client) -> None:
     assert data["success"] is True
     assert data["gene"]["gene_symbol"] == "SKI"
     assert "next_commands" in data["_meta"]
-    assert data["_meta"]["recommended_citation"]
+    assert data["_meta"]["citation_ref"] == "gencc://citation"
 
 
 async def test_get_disease_curations_success(mcp_client) -> None:
@@ -139,3 +140,56 @@ async def test_resource_capabilities_read(mcp_client) -> None:
     contents = await mcp_client.read_resource("gencc://capabilities")
     assert contents
     assert contents[0].text
+
+
+class TestEvalHardening:
+    async def test_search_genes_zero_result_propagates_query(self, mcp_client) -> None:
+        result = await mcp_client.call_tool("search_genes", {"query": "ZZZXNOPE"})
+        data = result.structured_content
+        nxt = data["_meta"]["next_commands"]
+        assert nxt == [] or nxt[0]["arguments"].get("query") == "ZZZXNOPE"
+
+    async def test_find_curations_invalid_classification(self, mcp_client) -> None:
+        result = await mcp_client.call_tool("find_curations", {"classification": ["Pathogenic"]})
+        data = result.structured_content
+        assert data["success"] is False
+        assert data["error_code"] == "invalid_input"
+        assert data["_meta"]["next_commands"][0]["tool"] == "get_server_capabilities"
+
+    async def test_find_curations_invalid_submitter_recovery(self, mcp_client) -> None:
+        result = await mcp_client.call_tool("find_curations", {"submitter": ["NotARealLab"]})
+        data = result.structured_content
+        assert data["success"] is False
+        assert data["_meta"]["next_commands"][0]["tool"] == "list_submitters"
+
+    async def test_gene_curations_not_found_recovery(self, mcp_client) -> None:
+        result = await mcp_client.call_tool("get_gene_curations", {"gene": "NOTAGENE"})
+        data = result.structured_content
+        assert data["success"] is False
+        assert data["error_code"] == "not_found"
+        assert data["_meta"]["next_commands"][0] == {
+            "tool": "search_genes",
+            "arguments": {"query": "NOTAGENE"},
+        }
+
+    async def test_find_curations_matched_in_payload(self, mcp_client) -> None:
+        result = await mcp_client.call_tool(
+            "find_curations", {"classification": ["Refuted Evidence"]}
+        )
+        data = result.structured_content
+        assert data["success"] is True
+        assert data["results"]
+        assert all("matched" in r for r in data["results"])
+
+    async def test_request_id_and_timing_present(self, mcp_client) -> None:
+        result = await mcp_client.call_tool("list_submitters", {})
+        data = result.structured_content
+        assert isinstance(data["_meta"]["request_id"], str)
+        assert isinstance(data["_meta"]["elapsed_ms"], (int, float))
+
+    async def test_compact_curations_has_citation_ref(self, mcp_client) -> None:
+        result = await mcp_client.call_tool(
+            "get_gene_curations", {"gene": "SKI", "response_mode": "compact"}
+        )
+        data = result.structured_content
+        assert data["_meta"]["citation_ref"] == "gencc://citation"

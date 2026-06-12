@@ -47,10 +47,15 @@ def register_gene_tools(mcp: FastMCP) -> None:
                 query, response_mode=response_mode, limit=limit, offset=offset
             )
             curies = [g["gene_curie"] for g in payload.get("genes", [])]
-            payload["_meta"] = {"next_commands": after_search_genes(curies)}
+            payload["_meta"] = {"next_commands": after_search_genes(curies, query)}
             return payload
 
-        return await run_mcp_tool("search_genes", call, context=McpErrorContext("search_genes"))
+        return await run_mcp_tool(
+            "search_genes",
+            call,
+            context=McpErrorContext("search_genes", arguments={"query": query}),
+            response_mode=response_mode,
+        )
 
     @mcp.tool(
         name="get_gene_curations",
@@ -80,5 +85,8 @@ def register_gene_tools(mcp: FastMCP) -> None:
             return payload
 
         return await run_mcp_tool(
-            "get_gene_curations", call, context=McpErrorContext("get_gene_curations")
+            "get_gene_curations",
+            call,
+            context=McpErrorContext("get_gene_curations", arguments={"gene": gene}),
+            response_mode=response_mode,
         )
