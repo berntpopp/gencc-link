@@ -382,7 +382,7 @@ class GenCCRepository:
         has_conflict: bool | None = None,
         limit: int,
         offset: int,
-    ) -> tuple[list[GeneDiseaseAssertion], int]:
+    ) -> tuple[list[GeneDiseaseAssertion], int, dict[tuple[str, str], list[dict[str, str | None]]]]:
         """Filter aggregated gene-disease assertions.
 
         When ``classification``/``submitter``/``moi`` filters are present, the
@@ -401,28 +401,35 @@ class GenCCRepository:
             offset: Number of leading rows to skip.
 
         Returns:
-            A ``(page, total)`` tuple where ``total`` is the distinct pair count.
+            A ``(page, total, matched_by_pair)`` tuple. ``total`` is the distinct
+            pair count; ``matched_by_pair`` maps each ``(gene_curie, disease_curie)``
+            to the distinct submissions that satisfied a submission-level filter
+            (empty when no such filter is active).
         """
         gene_curie: str | None = None
         if gene is not None:
             resolved = self.resolve_gene(gene)
             if resolved is None:
-                return [], 0
+                return [], 0, {}
             gene_curie = resolved.gene_curie
 
         submission_filtered = bool(classification) or bool(submitter) or bool(moi)
+        matched: dict[tuple[str, str], list[dict[str, str | None]]] = {}
 
         if submission_filtered:
-            pairs = self._pairs_from_submissions(
+            matched = self._matched_from_submissions(
                 gene_curie=gene_curie,
                 disease_curie=disease,
                 classification=classification,
                 submitter=submitter,
                 moi=moi,
             )
-            if not pairs:
-                return [], 0
-            rows = self._gene_disease_rows_for_pairs(pairs, has_conflict=has_conflict)
+            if not matched:
+                return [], 0, {}
+            rows = self._gene_disease_rows_for_pairs(set(matched), has_conflict=has_conflict)
+            # Drop matched entries for pairs filtered out by has_conflict.
+            kept = {(r["gene_curie"], r["disease_curie"]) for r in rows}
+            matched = {k: v for k, v in matched.items() if k in kept}
         else:
             rows = self._gene_disease_rows_direct(
                 gene_curie=gene_curie,
@@ -432,9 +439,9 @@ class GenCCRepository:
 
         total = len(rows)
         page = rows[offset : offset + limit]
-        return [assertion_from_row(row) for row in page], total
+        return [assertion_from_row(row) for row in page], total, matched
 
-    def _pairs_from_submissions(
+    def _matched_from_submissions(
         self,
         *,
         gene_curie: str | None,
@@ -442,8 +449,8 @@ class GenCCRepository:
         classification: list[str] | None,
         submitter: list[str] | None,
         moi: str | None,
-    ) -> set[tuple[str, str]]:
-        """Find distinct (gene_curie, disease_curie) pairs matching submission filters."""
+    ) -> dict[tuple[str, str], list[dict[str, str | None]]]:
+        """Map (gene_curie, disease_curie) -> distinct submissions matching the filters."""
         clauses: list[str] = []
         params: list[object] = []
         if gene_curie is not None:
@@ -468,9 +475,41 @@ class GenCCRepository:
             params.append(moi)
 
         where = (" WHERE " + " AND ".join(clauses)) if clauses else ""
-        sql = f"SELECT DISTINCT gene_curie, disease_curie FROM submissions{where}"
-        rows = self._conn.execute(sql, params).fetchall()
-        return {(row["gene_curie"], row["disease_curie"]) for row in rows}
+        sql = (
+            "SELECT gene_curie, disease_curie, submitter_title, classification_title, "
+            f"moi_title FROM submissions{where}"
+        )
+        out: dict[tuple[str, str], list[dict[str, str | None]]] = {}
+        seen: set[tuple[str, str, str | None, str | None, str | None]] = set()
+        for row in self._conn.execute(sql, params).fetchall():
+            key = (row["gene_curie"], row["disease_curie"])
+            dedupe = (
+                row["gene_curie"],
+                row["disease_curie"],
+                row["submitter_title"],
+                row["classification_title"],
+                row["moi_title"],
+            )
+            if dedupe in seen:
+                continue
+            seen.add(dedupe)
+            out.setdefault(key, []).append(
+                {
+                    "submitter_title": row["submitter_title"],
+                    "classification_title": row["classification_title"],
+                    "moi_title": row["moi_title"],
+                }
+            )
+        return out
+
+    def distinct_moi(self) -> list[tuple[str, str | None]]:
+        """Return distinct ``(moi_title, moi_curie)`` present in the submissions table."""
+        rows = self._conn.execute(
+            "SELECT moi_title, MAX(moi_curie) AS curie FROM submissions "
+            "WHERE moi_title IS NOT NULL AND moi_title != '' "
+            "GROUP BY moi_title ORDER BY moi_title"
+        ).fetchall()
+        return [(row["moi_title"], row["curie"]) for row in rows]
 
     def _gene_disease_rows_for_pairs(
         self, pairs: set[tuple[str, str]], *, has_conflict: bool | None

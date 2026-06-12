@@ -159,62 +159,88 @@ class TestSubmissions:
 
 class TestFindAssertions:
     def test_no_filters_returns_all(self, repository: GenCCRepository) -> None:
-        _rows, total = repository.find_assertions(limit=200, offset=0)
+        _rows, total, _m = repository.find_assertions(limit=200, offset=0)
         assert total >= 1
 
     def test_has_conflict(self, repository: GenCCRepository) -> None:
-        _rows, total = repository.find_assertions(has_conflict=True, limit=50, offset=0)
+        _rows, total, _m = repository.find_assertions(has_conflict=True, limit=50, offset=0)
         assert total == 2
 
     def test_has_conflict_false(self, repository: GenCCRepository) -> None:
-        rows, total = repository.find_assertions(has_conflict=False, limit=200, offset=0)
+        rows, total, _m = repository.find_assertions(has_conflict=False, limit=200, offset=0)
         assert total >= 1
         assert all(not r.has_conflict for r in rows)
 
     def test_gene_filter(self, repository: GenCCRepository) -> None:
-        rows, total = repository.find_assertions(gene="SKI", limit=50, offset=0)
+        rows, total, _m = repository.find_assertions(gene="SKI", limit=50, offset=0)
         assert total == 1
         assert rows[0].gene_symbol == "SKI"
 
     def test_unknown_gene_filter(self, repository: GenCCRepository) -> None:
-        rows, total = repository.find_assertions(gene="NOPE", limit=50, offset=0)
+        rows, total, _m = repository.find_assertions(gene="NOPE", limit=50, offset=0)
         assert total == 0
         assert rows == []
 
     def test_disease_filter(self, repository: GenCCRepository) -> None:
-        _rows, total = repository.find_assertions(disease="MONDO:0008426", limit=50, offset=0)
+        _rows, total, _m = repository.find_assertions(disease="MONDO:0008426", limit=50, offset=0)
         assert total >= 1
 
     def test_classification_filter(self, repository: GenCCRepository) -> None:
-        _rows, total = repository.find_assertions(classification=["Definitive"], limit=50, offset=0)
+        _rows, total, _m = repository.find_assertions(
+            classification=["Definitive"], limit=50, offset=0
+        )
         assert total >= 1
 
     def test_submitter_filter_by_title(self, repository: GenCCRepository) -> None:
-        _rows, total = repository.find_assertions(submitter=["ClinGen"], limit=50, offset=0)
+        _rows, total, _m = repository.find_assertions(submitter=["ClinGen"], limit=50, offset=0)
         assert total >= 1
 
     def test_moi_filter(self, repository: GenCCRepository) -> None:
-        _rows, total = repository.find_assertions(moi="Autosomal dominant", limit=50, offset=0)
+        _rows, total, _m = repository.find_assertions(moi="Autosomal dominant", limit=50, offset=0)
         assert total >= 1
 
     def test_submission_filter_no_match_returns_empty(self, repository: GenCCRepository) -> None:
-        rows, total = repository.find_assertions(
+        rows, total, matched = repository.find_assertions(
             classification=["No Such Class"], limit=50, offset=0
         )
         assert total == 0
         assert rows == []
+        assert matched == {}
 
     def test_combined_submission_and_conflict_filter(self, repository: GenCCRepository) -> None:
-        rows, _total = repository.find_assertions(
+        rows, _total, _m = repository.find_assertions(
             classification=["Definitive"], has_conflict=True, limit=50, offset=0
         )
         # Both GLA conflict rows include a Definitive submission.
         assert all(r.has_conflict for r in rows)
 
     def test_pagination(self, repository: GenCCRepository) -> None:
-        rows, total = repository.find_assertions(has_conflict=True, limit=1, offset=0)
+        rows, total, _m = repository.find_assertions(has_conflict=True, limit=1, offset=0)
         assert total == 2
         assert len(rows) == 1
+
+
+class TestFindMatched:
+    def test_distinct_moi_includes_fixture_values(self, repository: GenCCRepository) -> None:
+        titles = {t for t, _ in repository.distinct_moi()}
+        assert {"Autosomal dominant", "Autosomal recessive", "X-linked"} <= titles
+
+    def test_find_assertions_returns_matched_map(self, repository: GenCCRepository) -> None:
+        page, total, matched = repository.find_assertions(
+            classification=["Refuted Evidence"], limit=50, offset=0
+        )
+        assert total == len(page) and page
+        for a in page:
+            key = (a.gene_curie, a.disease_curie)
+            assert key in matched
+            assert any(m["classification_title"] == "Refuted Evidence" for m in matched[key])
+
+    def test_find_assertions_no_submission_filter_empty_matched(
+        self, repository: GenCCRepository
+    ) -> None:
+        page, total, matched = repository.find_assertions(has_conflict=True, limit=50, offset=0)
+        assert matched == {}
+        assert total == len(page)
 
 
 class TestSubmitters:
