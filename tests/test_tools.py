@@ -234,6 +234,14 @@ class TestBatchTools:
 
 
 class TestDiagnosticsQuota:
+    async def test_diagnostics_has_version_probe(self, mcp_client) -> None:
+        import re
+
+        result = await mcp_client.call_tool("get_gencc_diagnostics", {})
+        data = result.structured_content
+        assert re.fullmatch(r"[0-9a-f]{16}", data["capabilities_version"])
+        assert isinstance(data["server_version"], str)
+
     async def test_diagnostics_has_quota_block(self, mcp_client) -> None:
         result = await mcp_client.call_tool("get_gencc_diagnostics", {})
         data = result.structured_content

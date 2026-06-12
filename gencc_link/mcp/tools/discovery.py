@@ -44,12 +44,15 @@ def register_discovery_tools(mcp: FastMCP) -> None:
         description=(
             "Report build provenance and data freshness: GenCC run date, source "
             "ETag/last-modified, row/gene/disease/submitter counts, schema version, "
-            "and when the local database was built."
+            "and when the local database was built. Also echoes server_version and "
+            "capabilities_version so a warm client can poll this small payload for "
+            "drift instead of re-fetching the full capabilities document."
         ),
     )
     async def get_gencc_diagnostics() -> dict[str, Any]:
         async def call() -> dict[str, Any]:
             from gencc_link.config import get_data_config
+            from gencc_link.mcp.capabilities import capabilities_version, server_version
             from gencc_link.services.refresh import get_active_scheduler
 
             meta = get_gencc_service().get_meta()
@@ -75,6 +78,8 @@ def register_discovery_tools(mcp: FastMCP) -> None:
                     f"{meta.disease_count} diseases from {meta.submitter_count} submitters; "
                     f"run date {meta.gencc_run_date or 'unknown'}."
                 ),
+                "server_version": server_version(),
+                "capabilities_version": capabilities_version(),
                 "data": meta.model_dump(),
                 "refresh": refresh,
             }

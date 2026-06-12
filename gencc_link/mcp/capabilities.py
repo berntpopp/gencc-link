@@ -117,6 +117,9 @@ def _static_surface() -> dict[str, Any]:
             "matched": "find_curations: the submission(s) that satisfied a submission-level "
             "classification/submitter/moi filter (compact/standard/full)",
             "has_conflict": "true when supporting and against assertions coexist for a pair",
+            "capabilities_version": "16-char content hash of the static surface; also echoed "
+            "by get_gencc_diagnostics for a near-zero-token drift probe (re-fetch this "
+            "document only when it changes)",
         },
         "resources": {
             "gencc://capabilities": "this document",
@@ -138,6 +141,11 @@ def _static_surface() -> dict[str, Any]:
 def capabilities_version() -> str:
     """16-char content hash of the static capabilities surface."""
     return str(_static_surface()["capabilities_version"])
+
+
+def server_version() -> str:
+    """Installed package version (mirrors the capabilities surface)."""
+    return str(_static_surface()["server_version"])
 
 
 def build_capabilities() -> dict[str, Any]:
