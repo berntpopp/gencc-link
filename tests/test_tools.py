@@ -99,6 +99,23 @@ async def test_get_gene_disease_assertion_gla_conflict(mcp_client) -> None:
     assert "submissions" in data
 
 
+async def test_assertion_full_mode_is_deduplicated(mcp_client) -> None:
+    result = await mcp_client.call_tool(
+        "get_gene_disease_assertion",
+        {"gene": "SKI", "disease": "MONDO:0008426", "response_mode": "full"},
+    )
+    d = result.structured_content
+    assert "pmids" not in d["assertion"]  # no pair-level union
+    assert any(s.get("pmids") for s in d["assertion"]["submitters"])  # attribution kept
+    assert d["submissions"]
+    row = d["submissions"][0]
+    # raw-extras preserved
+    assert "notes" in row and "sgc_id" in row and "version_number" in row
+    # de-duplicated vs submitters[] / parent
+    for dropped in ("disease_curie", "public_report_url", "assertion_criteria_url"):
+        assert dropped not in row
+
+
 async def test_find_curations_success(mcp_client) -> None:
     result = await mcp_client.call_tool("find_curations", {"has_conflict": True})
     data = result.structured_content

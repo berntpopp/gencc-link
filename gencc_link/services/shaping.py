@@ -158,10 +158,11 @@ def assertion_dict(
         out["submitter_titles"] = a.submitter_titles
         return out
 
-    # standard + full: per-submitter breakdown
+    # standard + full: per-submitter breakdown. Each submitter carries its own
+    # pmids in full; the pair-level union is dropped as pure redundancy (it
+    # triplicated submitters[].pmids / submissions[].pmids and is trivially
+    # derivable). See docs/superpowers/specs/2026-06-12-mcp-consumer-uplift-v0.4.0.
     out["submitters"] = [_submitter_dict(s, mode) for s in a.submitters]
-    if mode == "full":
-        out["pmids"] = a.pmids
     return out
 
 
@@ -206,20 +207,25 @@ def submitter_dict(s: SubmitterSummary) -> dict[str, Any]:
 
 
 def submission_dict(s: SubmissionRecord) -> dict[str, Any]:
-    """Shape a raw submission row (full-detail view)."""
+    """Shape a raw submission row as *raw-extras only* (full-detail view).
+
+    In full mode the harmonized per-submitter fields (classification, MOI,
+    dates, report/criteria URLs) live in ``submitters[]`` and the pair-constant
+    disease identity comes from the parent assertion. This row therefore carries
+    only what ``submitters[]`` cannot: raw IDs (``sgc_id``), version, the
+    unharmonized original disease, free-text ``notes``, and the per-row
+    classification/MOI/pmids that let a reader see divergent submissions from one
+    submitter. Correlate a row back to a submitter via ``submitter_title``.
+    """
     return {
         "sgc_id": s.sgc_id,
         "submitter_title": s.submitter_title,
         "classification_title": s.classification_title,
         "moi_title": s.moi_title,
-        "disease_curie": s.disease_curie,
-        "disease_title": s.disease_title,
         "disease_original_curie": s.disease_original_curie,
         "disease_original_title": s.disease_original_title,
-        "submitted_as_date": s.submitted_as_date,
-        "submitted_as_date_iso": normalize_submitted_date(s.submitted_as_date),
-        "public_report_url": s.public_report_url,
-        "assertion_criteria_url": s.assertion_criteria_url,
+        "version_number": s.version_number,
+        "submitted_run_date": s.submitted_run_date,
         "pmids": s.pmids,
         "notes": s.notes,
     }
