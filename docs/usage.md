@@ -57,6 +57,20 @@ counts. If it reports the database is unavailable, run `make data` (or
 Example intent: *"Definitive autosomal-dominant genes curated by ClinGen"* ->
 `find_curations(classification=["Definitive"], moi="Autosomal dominant", submitter=["ClinGen"])`.
 
+`classification`, `submitter`, and `moi` are **validated and case-insensitive**:
+an out-of-vocabulary value (e.g. ClinVar's `"Pathogenic"`, or the short
+`"Recessive"`) returns `invalid_input` with the accepted set and a "did you mean"
+hint — not a misleading empty result. The accepted vocabularies are discoverable
+via `get_server_capabilities` (`classifications`, `inheritance_modes`) and
+`list_submitters`.
+
+These three filters match at the **submission level** (any submitter gave that
+value), not the consensus, so a row can read `consensus: "Strong"` while it
+matched on a single `Refuted Evidence` submission. Each result row therefore
+carries a `matched` field naming the triggering submission(s)
+(`submitter_title` + `classification_title` + `moi_title`) in
+`compact`/`standard`/`full`.
+
 Results are paginated (`limit` / `offset`) and carry a truncation block with a
 re-call hint when more rows exist.
 
@@ -80,7 +94,15 @@ Tools whose payloads vary accept a `response_mode`. Start at the default
 Each response carries a plain-English **`headline`** at the top (e.g.
 *"BRCA1 — 3 diseases; 2 Definitive, 1 conflict"*) so an agent can answer without
 parsing the full payload. `_meta.next_commands` provides ready-to-call
-`{tool, arguments}` next steps to chain the workflow without guessing.
+`{tool, arguments}` next steps to chain the workflow without guessing — present
+on **error** envelopes too (e.g. a `not_found` from `get_gene_curations` hands
+back `search_genes` with the same query). Every `_meta` also carries a
+`request_id` and server-side `elapsed_ms` for tracing.
+
+To save tokens, `minimal`/`compact` omit the redundant parent identifier from
+list rows (the gene in `get_gene_curations`, the disease in
+`get_disease_curations`) and replace the full citation with a cacheable
+`_meta.citation_ref = "gencc://citation"`; `standard`/`full` keep both.
 
 ## Conflict reading
 
@@ -94,8 +116,10 @@ conflict.
 ## Citation contract
 
 Every factual claim derived from GenCC must carry the recommended citation. It is
-returned verbatim in `_meta.recommended_citation` and from the `gencc://citation`
-resource — paste it as-is, do not paraphrase:
+returned verbatim in `_meta.recommended_citation` (in `standard`/`full`) and from
+the `gencc://citation` resource — paste it as-is, do not paraphrase. In
+`minimal`/`compact` the envelope returns `_meta.citation_ref = "gencc://citation"`
+instead; read that resource once and reuse the string:
 
 > DiStefano MT, Goehringer S, Babb L, et al. The Gene Curation Coalition: A
 > global effort to harmonize gene-disease evidence resources. Genet Med.

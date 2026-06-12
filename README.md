@@ -16,10 +16,19 @@ with consensus and conflict detection.
 - **Local SQLite + FTS5 store** built from the weekly GenCC bulk export — fast,
   deterministic, no upstream API at query time.
 - **10 MCP tools** with token-efficient `response_mode` shaping, plain-English
-  headlines, and ready-to-call `_meta.next_commands` chains.
+  headlines, and ready-to-call `_meta.next_commands` chains — on success **and**
+  error envelopes, so recovery is deterministic.
+- **Validated enum filters** — `find_curations` rejects out-of-vocabulary
+  `classification`/`submitter`/`moi` with `invalid_input` and the accepted set
+  (case-insensitive, with "did you mean"), instead of a misleading empty result.
+  Each matched row carries a `matched` field naming the triggering submission.
+- **Observability** — every `_meta` carries `request_id` + `elapsed_ms`;
+  `get_gencc_diagnostics` reports the daily download-quota headroom.
 - **Three transports** from one codebase: `unified` (REST + MCP), `http`, `stdio`.
-- **Agent-discoverable** — `gencc://` capabilities, usage, reference, license, and
-  citation resources; typed error envelopes; verbatim recommended citation.
+- **Agent-discoverable** — `gencc://` capabilities (with `inheritance_modes`,
+  `data_notes`), usage, reference, license, and citation resources; typed error
+  envelopes; `recommended_citation` (or a cacheable `citation_ref` in
+  minimal/compact).
 
 ## Data source & license
 
