@@ -207,3 +207,35 @@ mature, well-instrumented server.
 | Negative-rank classes, OR semantics (257 hits) | e240c893bdee |
 | Offset past end returns empty set gracefully | b7cd56af8fdc |
 | Partial title "Noonan" -> not_found, redirect to search | 9c036852c883 |
+
+---
+
+## Resolution (v0.4.0)
+
+Every finding above is resolved or explicitly deferred with rationale. See
+`docs/superpowers/specs/2026-06-12-mcp-consumer-uplift-v0.4.0-design.md` and the
+`## [0.4.0]` CHANGELOG entry. No data-correctness bugs were reported; the work is
+token-efficiency, paging consistency, message accuracy, and documentation.
+
+### Part 1 - Consumer UX improvements
+
+| # | Improvement | Status | What changed |
+|---|-------------|--------|--------------|
+| 1 | Full-mode assertion ~2x redundant | Resolved | Union `pmids` dropped; raw `submissions[]` slimmed to raw-extras (de-dup vs `submitters[]`); per-submitter PMIDs retained |
+| 2 | Full citation repeats in standard/full | Resolved | Standard already used `citation_ref`; errors now `citation_ref`-only; `full` keeps the verbatim citation by design (it is the maximum-detail mode) |
+| 3 | `_meta` static fields repeat | Resolved | `data_license` emitted only in `full`; documented as session-invariant in capabilities; `unsafe_for_clinical_use` kept on every envelope (safety) |
+| 4 | No one-shot "answer" tool | Deferred | A new grounded entry point is the largest-surface, lowest-marginal item; `next_commands` already makes search→get_* painless. Noted as a future enhancement |
+| 5 | Per-tool default `response_mode` not stated | Resolved | `tool_defaults` map added to the capabilities contract |
+
+### Part 2 - Tester defects
+
+| # | Severity | Defect | Status | What changed |
+|---|----------|--------|--------|--------------|
+| 1 | Medium | `resolve_identifier` message ignores `kind` | Resolved | Message reflects gene / disease / gene-or-disease scope |
+| 2 | Medium | Batch dedup silent | Resolved | `received` + `duplicates[]` echoed; headline notes folding |
+| 3 | Medium | `resolve_identifier` drops `identifier` when `query` set | Resolved | Conflicting aliases now return `invalid_input` |
+| 4 | Medium | Refresh-safe paging is `find_curations`-only | Resolved | Release-bound cursor extended to `search_*` and `get_*_curations` |
+| 5 | Low | Full-mode payload redundancy | Resolved | Same as Part-1 #1 |
+| 6 | Low | Errors carry the full citation | Resolved | Error envelopes carry `citation_ref` only |
+| 7 | Low/doc | `ambiguous_query` example + operational-only codes | Resolved | `ambiguous_query_example` + annotated `error_codes` (`operational_only`) |
+| 8 | Low/doc | Title input exact-only; per-tool default modes | Resolved (docs) / Deferred (auto-resolve) | Per-tool defaults + exact-match contract documented; single-hit auto-resolve deferred (keeps deterministic redirect-to-search behavior) |

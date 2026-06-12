@@ -5,6 +5,63 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] - 2026-06-12
+
+Consumer-uplift release (target >9.5/10): resolves every finding in the fresh
+v0.3.0 consumer assessment (`docs/mcp-consumer-assessment-v0.3.0.md`, scored
+9/10) — see `docs/superpowers/specs/2026-06-12-mcp-consumer-uplift-v0.4.0-design.md`.
+No functional bugs were found; the changes are token-efficiency, paging
+consistency, message accuracy, and documentation completeness.
+
+### Changed
+
+- **Full-mode payload de-duplication (the biggest token win).**
+  `get_gene_disease_assertion` full mode no longer emits a pair-level union
+  `pmids` (it triplicated per-submitter PMIDs), and the raw `submissions[]` array
+  is slimmed to raw-extras only (`sgc_id`, `notes`, original disease ids,
+  `version_number`, `submitted_run_date`, per-row classification/MOI/PMIDs) — the
+  harmonized fields and pair-constant disease identity now come from
+  `submitters[]`/the parent. `get_gene_curations`/`get_disease_curations` full
+  mode likewise drop the per-pair union `pmids`. Correlate a submission row to a
+  submitter via `submitter_title`. (Assessment Part-1 #1, Part-2 #5)
+- **Error envelopes carry `citation_ref` only** — no verbatim
+  `recommended_citation` and no `citation_short` (an error has no claim to cite).
+  `data_license` is now emitted in per-call `_meta` only in `full` mode (it is
+  session-invariant, already in `citation_short` and the capabilities contract);
+  `unsafe_for_clinical_use` still rides every envelope. (Part-1 #2/#3, Part-2 #6)
+
+### Added
+
+- **Uniform refresh-safe paging.** `search_genes`, `search_diseases`,
+  `get_gene_curations`, and `get_disease_curations` now accept a release-bound,
+  opaque `cursor` and mint `truncated.next_cursor` (surfaced as the first
+  `_meta.next_commands` entry), matching `find_curations`. A cursor minted under a
+  prior GenCC release is rejected as `invalid_input` so a weekly refresh can't
+  silently skip or duplicate rows mid-sweep. Batch `get_genes_curations` /
+  `get_diseases_curations` remain non-paged. (Part-2 #4)
+- **Batch dedup observability.** `get_genes_curations` / `get_diseases_curations`
+  echo `received` (raw input length) and a `duplicates[]` block of folded values;
+  the headline notes folding. (Part-2 #2)
+- **Capabilities documentation.** `tool_defaults` (per-tool default
+  `response_mode`), `conflict_semantics` (supporting/against/excluded tiers),
+  annotated `error_codes` (`operational_only` flags for ingest/quota-only codes)
+  plus a back-compat `error_codes_list`, and a reachable `ambiguous_query_example`.
+  (Part-1 #5, Part-2 #7, #8)
+
+### Fixed
+
+- `resolve_identifier` not-found message now reflects the `kind` scope
+  ("…to a GenCC disease." for `kind='disease'`), not always "gene or disease".
+  (Part-2 #1)
+- `resolve_identifier` rejects conflicting `query`/`identifier` aliases with
+  `invalid_input` instead of silently dropping `identifier`. (Part-2 #3)
+
+### Internal
+
+- Shared `decode_paged_cursor` (release-stale rejection) in `services/cursor.py`;
+  `find_curations` refactored onto it. Pure batch hygiene extracted to
+  `services/batch.py` to keep `gencc_service.py` under the 600-line cap.
+
 ## [0.3.0] - 2026-06-12
 
 Consumer-uplift release: resolves every finding in `docs/MCP-ASSESSMENT.md`
