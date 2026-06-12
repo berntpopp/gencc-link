@@ -213,6 +213,15 @@ class TestEvalHardening:
         for sym in symbols:  # fixture page is <=5 hits, so every symbol is named
             assert sym in data["headline"]
 
+    async def test_assertion_full_has_iso_date(self, mcp_client) -> None:
+        result = await mcp_client.call_tool(
+            "get_gene_disease_assertion",
+            {"gene": "GLA", "disease": "MONDO:0010526", "response_mode": "full"},
+        )
+        data = result.structured_content
+        subs = data["assertion"]["submitters"]
+        assert any("submitted_as_date_iso" in s for s in subs)
+
 
 class TestBatchTools:
     async def test_genes_curations_multi(self, mcp_client) -> None:

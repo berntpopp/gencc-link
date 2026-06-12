@@ -64,7 +64,8 @@ GENCC_REFERENCE_NOTES = (
     "names the triggering submission. Out-of-vocabulary filter values return "
     "invalid_input with the accepted set (matching is case-insensitive). Some "
     "passthrough fields are verbatim from submitters: assertion_criteria_url may "
-    "be non-URL; submitted_as_date mixes formats; the pmids array is normalised."
+    "be non-URL; submitted_as_date mixes formats (a normalized submitted_as_date_iso "
+    "is added in standard/full); the pmids array is normalised."
 )
 
 GENCC_LICENSE_NOTE = (

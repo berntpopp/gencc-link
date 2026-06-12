@@ -7,6 +7,7 @@ parsing the whole payload.
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
 from gencc_link.models import (
@@ -55,6 +56,26 @@ def assertion_headline(a: GeneDiseaseAssertion) -> str:
 
 _MAX_HEADLINE_NAMES = 5
 
+_ISO_DATE = re.compile(r"^\s*(\d{4})-(\d{2})-(\d{2})")
+
+
+def normalize_submitted_date(raw: str | None) -> str | None:
+    """Normalize a verbatim submitter date to an ISO-8601 date (YYYY-MM-DD).
+
+    GenCC passes dates through verbatim, mixing '2017-08-29 00:00:00' and ISO-8601
+    '2024-08-29T00:00:00.000000Z'. The reliably-present, comparable granularity is
+    the calendar date; returns None when no valid leading date can be parsed.
+    """
+    if not raw:
+        return None
+    match = _ISO_DATE.match(raw)
+    if not match:
+        return None
+    year, month, day = (int(part) for part in match.groups())
+    if not (1 <= month <= 12 and 1 <= day <= 31):
+        return None
+    return f"{year:04d}-{month:02d}-{day:02d}"
+
 
 def _search_headline(query: str, names: list[str], returned: int, total: int, noun: str) -> str:
     """Set-aware headline: '<scope> match '<query>': name1, name2, …, +N more.'"""
@@ -91,6 +112,7 @@ def _submitter_dict(s: Any, mode: ResponseMode) -> dict[str, Any]:
     }
     if mode in ("standard", "full"):
         base["submitted_as_date"] = data.get("submitted_as_date")
+        base["submitted_as_date_iso"] = normalize_submitted_date(data.get("submitted_as_date"))
         base["public_report_url"] = data.get("public_report_url")
     if mode == "full":
         base["submitter_curie"] = data.get("submitter_curie")
@@ -194,6 +216,7 @@ def submission_dict(s: SubmissionRecord) -> dict[str, Any]:
         "disease_original_curie": s.disease_original_curie,
         "disease_original_title": s.disease_original_title,
         "submitted_as_date": s.submitted_as_date,
+        "submitted_as_date_iso": normalize_submitted_date(s.submitted_as_date),
         "public_report_url": s.public_report_url,
         "assertion_criteria_url": s.assertion_criteria_url,
         "pmids": s.pmids,

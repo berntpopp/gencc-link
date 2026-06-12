@@ -119,6 +119,9 @@ def _static_surface() -> dict[str, Any]:
             "matched": "find_curations: the submission(s) that satisfied a submission-level "
             "classification/submitter/moi filter (compact/standard/full)",
             "has_conflict": "true when supporting and against assertions coexist for a pair",
+            "submitted_as_date_iso": "per-submitter/submission: submitted_as_date "
+            "normalized to an ISO-8601 date (YYYY-MM-DD); the verbatim "
+            "submitted_as_date is retained alongside it (standard/full).",
             "strongest_classification": "gene-disease pairs: the highest-rank "
             "classification asserted by any submitter (e.g. Definitive). NOT a "
             "consensus/agreement measure -- a pair can be Definitive yet conflicted; "
@@ -166,7 +169,9 @@ def build_capabilities() -> dict[str, Any]:
     surface["data_notes"] = [
         "Some submitter fields pass through verbatim: assertion_criteria_url may hold "
         "non-URL text (e.g. 'PMID: 28106320'); submitted_as_date mixes formats "
-        "(e.g. '2018-03-30 13:31:56' vs ISO 8601 '2024-07-23T00:00:00.000000Z').",
+        "(e.g. '2018-03-30 13:31:56' vs ISO 8601 '2024-07-23T00:00:00.000000Z'). "
+        "A normalized submitted_as_date_iso (YYYY-MM-DD) is emitted alongside the "
+        "verbatim value in standard/full.",
         "The structured pmids array is normalised and can correct malformed PMIDs in "
         "the raw submitter notes text.",
         "find_curations classification/submitter/moi match at the submission level "

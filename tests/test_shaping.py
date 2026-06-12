@@ -338,3 +338,34 @@ class TestSearchHeadlines:
         hits = [self._disease("MONDO:1", None), self._disease("MONDO:2", None)]
         head = shaping.diseases_search_headline("x", hits, total=2)
         assert "MONDO:1" in head and "MONDO:2" in head
+
+
+class TestDateNormalization:
+    @pytest.mark.parametrize(
+        ("raw", "expected"),
+        [
+            ("2017-08-29 00:00:00", "2017-08-29"),
+            ("2024-08-29T00:00:00.000000Z", "2024-08-29"),
+            ("2018-03-30 13:31:56", "2018-03-30"),
+            ("2019-04-01", "2019-04-01"),
+            (None, None),
+            ("not a date", None),
+            ("2020-13-01", None),
+        ],
+    )
+    def test_normalize_submitted_date(self, raw: str | None, expected: str | None) -> None:
+        assert shaping.normalize_submitted_date(raw) == expected
+
+    def test_submitter_dict_standard_adds_iso(self) -> None:
+        out = shaping._submitter_dict(
+            {
+                "submitter_title": "Ambry Genetics",
+                "classification_title": "Definitive",
+                "moi_title": "AD",
+                "submitted_as_date": "2017-08-29 00:00:00",
+                "public_report_url": None,
+            },
+            "standard",
+        )
+        assert out["submitted_as_date"] == "2017-08-29 00:00:00"
+        assert out["submitted_as_date_iso"] == "2017-08-29"
