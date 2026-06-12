@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Batch curation tools** (closes `MCP-UX-ASSESSMENT.md`, target >9.5/10):
+  - `get_genes_curations(genes=[...])` / `get_diseases_curations(diseases=[...])`
+    collapse multi-entity questions into a single call (max 20; per-entity limit;
+    partial-failure `unresolved` list — a single bad input never drops the rest).
+  - `find_curations` gains an `ids_only` mode returning just
+    `{gene_curie, disease_curie}` pairs for near-zero-token paging.
+  - `get_gencc_diagnostics` echoes `server_version` + `capabilities_version` as a
+    near-zero-token drift probe (re-fetch the full capabilities doc only on change).
 - **MCP evaluation hardening** (closes `docs/mcp-evaluation.md`, target >9.5/10):
   - `find_curations` **validates** `classification`/`submitter`/`moi`: out-of-vocabulary
     or wrong-case values return `invalid_input` with the accepted set + a "did you
@@ -45,6 +53,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **`find_curations` latency**: the access path is rewritten so cost is bounded by
+  page size, not match-set size. The flagged ~59 ms outlier (a `gene_disease` full
+  scan) drops to ~7.5 ms for the documented workflow; broad single-filter queries
+  drop to ~7-12 ms. Covering submission indexes
+  (`idx_sub_classification` / `idx_sub_submitter_title` / `idx_sub_moi_nocase`)
+  make resolving the matching pairs an index-only scan. No `schema_version` bump
+  (indexes do not change results); the query helpers moved to
+  `gencc_link/data/find.py`.
 - Docker image builds the database in the entrypoint and sets
   `AUTO_BOOTSTRAP=false`, so the request path never triggers a lazy build.
 

@@ -140,8 +140,10 @@ Or run stdio from a checkout with `uv` (no install step):
 | `search_diseases` | Resolve title / MONDO / OMIM id to diseases (FTS) |
 | `get_gene_curations` | All gene-disease assertions for a gene, with consensus + conflict |
 | `get_disease_curations` | All genes asserted for a disease, with consensus |
+| `get_genes_curations` | Batch `get_gene_curations`: up to 20 genes in one call (misses in `unresolved`) |
+| `get_diseases_curations` | Batch `get_disease_curations`: up to 20 diseases in one call (misses in `unresolved`) |
 | `get_gene_disease_assertion` | One pair: per-submitter classifications, MOI, PMIDs, URLs + conflict analysis |
-| `find_curations` | Filter assertions by classification/submitter/MOI/conflict |
+| `find_curations` | Filter assertions by classification/submitter/MOI/conflict (`ids_only` for cheap paging) |
 | `list_submitters` | Submitting organizations + counts |
 | `resolve_identifier` | Map free text to canonical HGNC/MONDO ids |
 
