@@ -109,9 +109,7 @@ def register_assertion_tools(mcp: FastMCP) -> None:
             payload["_meta"] = {"next_commands": nexts}
             return payload
 
-        return await run_mcp_tool(
-            "find_curations", call, context=McpErrorContext("find_curations")
-        )
+        return await run_mcp_tool("find_curations", call, context=McpErrorContext("find_curations"))
 
     @mcp.tool(
         name="resolve_identifier",

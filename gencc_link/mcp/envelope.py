@@ -70,7 +70,11 @@ def _provenance_meta() -> dict[str, Any]:
 def _classify(exc: BaseException) -> tuple[str, str, bool]:
     """Return (error_code, client_safe_message, retryable)."""
     if isinstance(exc, McpToolError):
-        return exc.error_code, exc.message, exc.error_code in {"rate_limited", "upstream_unavailable"}
+        return (
+            exc.error_code,
+            exc.message,
+            exc.error_code in {"rate_limited", "upstream_unavailable"},
+        )
     if isinstance(exc, QuotaExceededError):
         return "rate_limited", "GenCC download quota exceeded. Try again later.", True
     if isinstance(exc, DownloadError):

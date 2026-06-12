@@ -1,0 +1,55 @@
+name: gencc-link
+
+services:
+  gencc-link:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      target: production
+    container_name: gencc-link
+    ports:
+      - "${GENCC_LINK_HOST_PORT:-8000}:8000"
+    env_file:
+      - path: ../.env
+        required: false
+      - path: ../.env.docker
+        required: false
+    environment:
+      GENCC_LINK_HOST: 0.0.0.0
+      GENCC_LINK_PORT: 8000
+      GENCC_LINK_TRANSPORT: unified
+      GENCC_LINK_MCP_PATH: /mcp
+      GENCC_LINK_LOG_LEVEL: INFO
+      GENCC_LINK_LOG_FORMAT: json
+      # The database is built into this directory; the named volume below keeps
+      # it across restarts so the GenCC export is only downloaded once.
+      GENCC_LINK_DATA__DATA_DIR: /app/data
+      GENCC_LINK_DATA__AUTO_BOOTSTRAP: "true"
+    command:
+      ["python", "server.py", "--transport", "unified", "--host", "0.0.0.0", "--port", "8000"]
+    volumes:
+      # Persist the built ~24MB SQLite database across container restarts.
+      - gencc-data:/app/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      # First boot may download + build the database; allow extra startup time.
+      start_period: 180s
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    networks:
+      - gencc-network
+
+volumes:
+  gencc-data:
+    driver: local
+
+networks:
+  gencc-network:
+    driver: bridge

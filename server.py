@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Unified entry point for GenCC-Link.
 
-    python server.py --transport unified  # FastAPI + MCP at /mcp (default)
-    python server.py --transport http     # FastAPI only
-    python server.py --transport stdio    # FastMCP stdio (for Claude Desktop)
+python server.py --transport unified  # FastAPI + MCP at /mcp (default)
+python server.py --transport http     # FastAPI only
+python server.py --transport stdio    # FastMCP stdio (for Claude Desktop)
 """
 
 from __future__ import annotations

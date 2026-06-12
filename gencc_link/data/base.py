@@ -27,9 +27,7 @@ class GenCCRepositoryProtocol(Protocol):
         """Return build provenance from the ``meta`` table."""
         ...
 
-    def search_genes(
-        self, query: str, *, limit: int, offset: int
-    ) -> tuple[list[GeneSummary], int]:
+    def search_genes(self, query: str, *, limit: int, offset: int) -> tuple[list[GeneSummary], int]:
         """FTS/exact search over the gene catalog. Returns (page, total_hits)."""
         ...
 
@@ -55,15 +53,11 @@ class GenCCRepositoryProtocol(Protocol):
         """All aggregated gene assertions for a disease (submitters populated)."""
         ...
 
-    def get_gene_disease(
-        self, gene_curie: str, disease_curie: str
-    ) -> GeneDiseaseAssertion | None:
+    def get_gene_disease(self, gene_curie: str, disease_curie: str) -> GeneDiseaseAssertion | None:
         """One aggregated gene-disease assertion (submitters populated)."""
         ...
 
-    def get_submissions(
-        self, gene_curie: str, disease_curie: str
-    ) -> list[SubmissionRecord]:
+    def get_submissions(self, gene_curie: str, disease_curie: str) -> list[SubmissionRecord]:
         """Raw submission rows for a gene-disease pair (for full-detail views)."""
         ...
 

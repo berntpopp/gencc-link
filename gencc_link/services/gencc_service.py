@@ -25,9 +25,9 @@ class _TTLCache:
     def __init__(self, maxsize: int, ttl: int) -> None:
         self._maxsize = maxsize
         self._ttl = ttl
-        self._store: dict[str, tuple[float, Any]] = {}
+        self._store: dict[str, tuple[float, dict[str, Any]]] = {}
 
-    def get(self, key: str) -> Any | None:
+    def get(self, key: str) -> dict[str, Any] | None:
         if self._maxsize <= 0:
             return None
         item = self._store.get(key)
@@ -39,7 +39,7 @@ class _TTLCache:
             return None
         return value
 
-    def put(self, key: str, value: Any) -> None:
+    def put(self, key: str, value: dict[str, Any]) -> None:
         if self._maxsize <= 0:
             return
         if len(self._store) >= self._maxsize:
@@ -69,7 +69,7 @@ class GenCCService:
                 f"Invalid response_mode {mode!r}. Use one of: {', '.join(RESPONSE_MODES)}.",
                 field="response_mode",
             )
-        return mode  # type: ignore[return-value]
+        return mode
 
     @staticmethod
     def _clamp_limit(limit: int) -> int:
@@ -234,7 +234,9 @@ class GenCCService:
                 f"{disease_summary.disease_curie}."
             )
         payload: dict[str, Any] = {
-            "assertion": shaping.assertion_dict(assertion, "standard" if mode == "minimal" else mode),
+            "assertion": shaping.assertion_dict(
+                assertion, "standard" if mode == "minimal" else mode
+            ),
             "headline": shaping.assertion_headline(assertion),
         }
         if mode == "full":

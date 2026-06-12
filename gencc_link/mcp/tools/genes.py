@@ -76,9 +76,7 @@ def register_gene_tools(mcp: FastMCP) -> None:
             )
             gene_arg = payload.get("gene", {}).get("gene_curie", gene)
             disease_curies = [d["disease_curie"] for d in payload.get("diseases", [])]
-            payload["_meta"] = {
-                "next_commands": after_gene_curations(gene_arg, disease_curies)
-            }
+            payload["_meta"] = {"next_commands": after_gene_curations(gene_arg, disease_curies)}
             return payload
 
         return await run_mcp_tool(

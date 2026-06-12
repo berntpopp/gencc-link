@@ -53,7 +53,9 @@ class UnifiedServerManager:
         fastapi_app.router.lifespan_context = combined_lifespan
         fastapi_app.mount("/", mcp_asgi)
 
-        config = uvicorn.Config(app=fastapi_app, host=host, port=port, log_config=None, lifespan="on")
+        config = uvicorn.Config(
+            app=fastapi_app, host=host, port=port, log_config=None, lifespan="on"
+        )
         self._uvicorn_server = uvicorn.Server(config)
         await self._uvicorn_server.serve()
 
@@ -63,7 +65,9 @@ class UnifiedServerManager:
             self.logger.info("Starting HTTP-only server", host=host, port=port)
         from gencc_link.app import app as fastapi_app
 
-        config = uvicorn.Config(app=fastapi_app, host=host, port=port, log_config=None, lifespan="on")
+        config = uvicorn.Config(
+            app=fastapi_app, host=host, port=port, log_config=None, lifespan="on"
+        )
         self._uvicorn_server = uvicorn.Server(config)
         await self._uvicorn_server.serve()
 
