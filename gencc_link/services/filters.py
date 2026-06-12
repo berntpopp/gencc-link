@@ -17,8 +17,21 @@ from gencc_link.exceptions import InvalidInputError
 
 
 def _suggest(value: str, options: list[str]) -> str:
-    match = difflib.get_close_matches(value, options, n=1, cutoff=0.4)
-    return f" Did you mean {match[0]!r}?" if match else ""
+    """Case-insensitive 'did you mean' hint (up to 3 closest matches).
+
+    Folding case avoids the length bias that ranked a shorter wrong option
+    (e.g. 'X-linked recessive') above the intuitive 'Autosomal recessive' for
+    input 'Recessive'; offering several keeps the agent from a brittle pick.
+    """
+    folded = {opt.casefold(): opt for opt in options}
+    matches = difflib.get_close_matches(value.casefold(), list(folded), n=3, cutoff=0.4)
+    if not matches:
+        return ""
+    canonical = [folded[m] for m in matches]
+    if len(canonical) == 1:
+        return f" Did you mean {canonical[0]!r}?"
+    listed = ", ".join(repr(c) for c in canonical)
+    return f" Did you mean one of: {listed}?"
 
 
 def _canonical_map(values: set[str]) -> dict[str, str]:

@@ -282,6 +282,25 @@ class TestEvalHardening:
         assert sizes == sorted(sizes) and len(set(sizes)) == 4  # strictly increasing
 
 
+    async def test_resolve_identifier_ambiguous_query(
+        self, mcp_client, service, monkeypatch
+    ) -> None:
+        # Make "SKI" resolve as BOTH a gene and a disease to exercise the
+        # ambiguous_query path end-to-end (no fixture change).
+        a_disease = service._repo.resolve_disease("MONDO:0008426")
+        orig = service._repo.resolve_disease
+
+        def both(ident: str):
+            return a_disease if ident.strip().casefold() == "ski" else orig(ident)
+
+        monkeypatch.setattr(service._repo, "resolve_disease", both)
+        result = await mcp_client.call_tool("resolve_identifier", {"query": "SKI"})
+        data = result.structured_content
+        assert data["success"] is False
+        assert data["error_code"] == "ambiguous_query"
+        tools = {c["tool"] for c in data["_meta"]["next_commands"]}
+        assert tools == {"get_gene_curations", "get_disease_curations"}
+
     async def test_find_curations_pages_forward_with_cursor(self, mcp_client) -> None:
         first = await mcp_client.call_tool(
             "find_curations", {"classification": ["Definitive"], "limit": 2}
