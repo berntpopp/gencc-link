@@ -15,11 +15,11 @@ from gencc_link.exceptions import AmbiguousQueryError, InvalidInputError, NotFou
 from gencc_link.models import BuildMeta
 from gencc_link.models.enums import RESPONSE_MODES, ResponseMode
 from gencc_link.services import shaping
+from gencc_link.services.batch import batch_payload, dedupe_batch
 from gencc_link.services.cursor import decode_paged_cursor
 from gencc_link.services.filters import validate_find_filters
 
 _MAX_LIMIT = 200
-_BATCH_MAX = 20
 
 
 class _TTLCache:
@@ -306,34 +306,11 @@ class GenCCService:
 
     # --- batch ----------------------------------------------------------
 
-    @staticmethod
-    def _dedupe_batch(items: list[str], *, field: str) -> list[str]:
-        """Validate and de-duplicate (case-insensitively) a batch input list."""
-        if not items:
-            raise InvalidInputError(f"{field} must not be empty.", field=field)
-        if len(items) > _BATCH_MAX:
-            raise InvalidInputError(
-                f"Too many values ({len(items)}); max {_BATCH_MAX} per call.", field=field
-            )
-        seen: set[str] = set()
-        ordered: list[str] = []
-        for raw in items:
-            if not isinstance(raw, str) or not raw.strip():
-                raise InvalidInputError(
-                    f"each {field} value must be a non-empty string.", field=field
-                )
-            value = raw.strip()
-            if value.lower() in seen:
-                continue
-            seen.add(value.lower())
-            ordered.append(value)
-        return ordered
-
     def get_genes_curations(
         self, genes: list[str], *, response_mode: str = "compact", limit_per_gene: int = 50
     ) -> dict[str, Any]:
         mode = self._validate_mode(response_mode)
-        ordered = self._dedupe_batch(genes, field="genes")
+        ordered, duplicates = dedupe_batch(genes, field="genes")
         limit = self._clamp_limit(limit_per_gene)
         results: list[dict[str, Any]] = []
         unresolved: list[dict[str, str]] = []
@@ -356,24 +333,20 @@ class GenCCService:
             if trunc:
                 block["truncated"] = trunc
             results.append(block)
-        payload: dict[str, Any] = {
-            "headline": (
-                f"Curations for {len(results)} of {len(ordered)} requested gene(s) "
-                f"({len(unresolved)} unresolved)."
-            ),
-            "requested": len(ordered),
-            "count": len(results),
-            "results": results,
-        }
-        if unresolved:
-            payload["unresolved"] = unresolved
-        return payload
+        return batch_payload(
+            noun="gene",
+            received=len(genes),
+            ordered=ordered,
+            results=results,
+            unresolved=unresolved,
+            duplicates=duplicates,
+        )
 
     def get_diseases_curations(
         self, diseases: list[str], *, response_mode: str = "compact", limit_per_disease: int = 50
     ) -> dict[str, Any]:
         mode = self._validate_mode(response_mode)
-        ordered = self._dedupe_batch(diseases, field="diseases")
+        ordered, duplicates = dedupe_batch(diseases, field="diseases")
         limit = self._clamp_limit(limit_per_disease)
         results: list[dict[str, Any]] = []
         unresolved: list[dict[str, str]] = []
@@ -396,18 +369,14 @@ class GenCCService:
             if trunc:
                 block["truncated"] = trunc
             results.append(block)
-        payload: dict[str, Any] = {
-            "headline": (
-                f"Curations for {len(results)} of {len(ordered)} requested disease(s) "
-                f"({len(unresolved)} unresolved)."
-            ),
-            "requested": len(ordered),
-            "count": len(results),
-            "results": results,
-        }
-        if unresolved:
-            payload["unresolved"] = unresolved
-        return payload
+        return batch_payload(
+            noun="disease",
+            received=len(diseases),
+            ordered=ordered,
+            results=results,
+            unresolved=unresolved,
+            duplicates=duplicates,
+        )
 
     # --- detail ---------------------------------------------------------
 
@@ -589,8 +558,12 @@ class GenCCService:
                 candidates=[result["gene"]["gene_curie"], result["disease"]["disease_curie"]],
             )
         if result["gene"] is None and result["disease"] is None:
-            raise NotFoundError(
-                f"Could not resolve {query!r} to a GenCC gene or disease. Try search_genes "
-                "or search_diseases."
+            scope = {"gene": "GenCC gene", "disease": "GenCC disease"}.get(
+                kind, "GenCC gene or disease"
             )
+            hint = {
+                "gene": "Try search_genes.",
+                "disease": "Try search_diseases.",
+            }.get(kind, "Try search_genes or search_diseases.")
+            raise NotFoundError(f"Could not resolve {query!r} to a {scope}. {hint}")
         return result

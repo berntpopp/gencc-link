@@ -336,6 +336,19 @@ class TestEvalHardening:
         resources = result.structured_content["resources"]
         assert "gencc://research-use" in resources
 
+    async def test_resolve_dual_arg_conflict_rejected(self, mcp_client) -> None:
+        result = await mcp_client.call_tool(
+            "resolve_identifier", {"query": "SKI", "identifier": "BRCA2"}
+        )
+        data = result.structured_content
+        assert data["success"] is False and data["error_code"] == "invalid_input"
+
+    async def test_resolve_dual_arg_equal_ok(self, mcp_client) -> None:
+        result = await mcp_client.call_tool(
+            "resolve_identifier", {"query": "SKI", "identifier": "SKI"}
+        )
+        assert result.structured_content["success"] is True
+
     async def test_resolve_identifier_ambiguous_query(
         self, mcp_client, service, monkeypatch
     ) -> None:

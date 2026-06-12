@@ -50,6 +50,18 @@ def test_resolve_identifier_kind_gene_not_ambiguous() -> None:
     assert out["disease"] is None
 
 
+def test_resolve_not_found_message_is_kind_scoped(service: GenCCService) -> None:
+    with pytest.raises(NotFoundError) as g:
+        service.resolve_identifier("NOTATHING", kind="gene")
+    assert "GenCC gene." in str(g.value) and "disease" not in str(g.value)
+    with pytest.raises(NotFoundError) as d:
+        service.resolve_identifier("NOTATHING", kind="disease")
+    assert "GenCC disease." in str(d.value) and "gene or disease" not in str(d.value)
+    with pytest.raises(NotFoundError) as a:
+        service.resolve_identifier("NOTATHING", kind="auto")
+    assert "gene or disease" in str(a.value)
+
+
 class TestSearchGenes:
     def test_hits_total_headline(self, service: GenCCService) -> None:
         out = service.search_genes("SKI")
@@ -364,8 +376,16 @@ class TestBatchCurations:
 
     def test_genes_curations_dedupes_preserving_order(self, service: GenCCService) -> None:
         out = service.get_genes_curations(["SKI", "ski", "SKI"])
-        assert out["requested"] == 1
+        assert out["requested"] == 1  # distinct queried (back-compat)
+        assert out["received"] == 3  # raw input length
+        assert out["duplicates"] == ["ski", "SKI"]  # folded duplicates echoed
+        assert "duplicate(s) folded" in out["headline"]
         assert out["count"] == 1
+
+    def test_genes_curations_no_duplicates_block_when_unique(self, service: GenCCService) -> None:
+        out = service.get_genes_curations(["SKI", "GLA"])
+        assert out["received"] == 2
+        assert "duplicates" not in out
 
     def test_genes_curations_partial_unresolved(self, service: GenCCService) -> None:
         out = service.get_genes_curations(["SKI", "NOTAGENE"])

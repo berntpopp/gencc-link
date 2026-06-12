@@ -153,7 +153,8 @@ def register_assertion_tools(mcp: FastMCP) -> None:
             "(MONDO) identifier by exact symbol/id/title match. Use kind='gene' or "
             "kind='disease' to disambiguate; default 'auto' tries both and returns "
             "ambiguous_query if the text matches both a gene and a disease. "
-            "Accepts query or its alias identifier."
+            "`identifier` is an alias for `query`; pass only one (supplying both with "
+            "different values returns invalid_input)."
         ),
     )
     async def resolve_identifier(
@@ -162,6 +163,12 @@ def register_assertion_tools(mcp: FastMCP) -> None:
         identifier: str | None = None,
     ) -> dict[str, Any]:
         async def call() -> dict[str, Any]:
+            if query is not None and identifier is not None and query.strip() != identifier.strip():
+                raise InvalidInputError(
+                    "Pass only one of `query`/`identifier` (they are aliases); "
+                    f"got query={query!r} and identifier={identifier!r}.",
+                    field="query",
+                )
             q = query if query is not None else identifier
             if q is None:
                 raise InvalidInputError("query must not be empty.", field="query")
