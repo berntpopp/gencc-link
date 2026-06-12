@@ -106,7 +106,9 @@ def assertion_from_row(row: sqlite3.Row) -> GeneDiseaseAssertion:
         disease_title=row["disease_title"],
         n_submissions=row["n_submissions"],
         n_submitters=row["n_submitters"],
-        consensus_classification=row["consensus_classification"],
+        # DB column `consensus_classification` holds the strongest (max-rank)
+        # title; surfaced to consumers as `strongest_classification`.
+        strongest_classification=row["consensus_classification"],
         consensus_rank=row["consensus_rank"],
         min_classification=row["min_classification"],
         has_conflict=bool(row["has_conflict"]),

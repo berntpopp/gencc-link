@@ -5,10 +5,34 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.2.0] - 2026-06-12
+
+### Changed
+
+- **BREAKING:** renamed the gene-disease output field `consensus_classification`
+  to `strongest_classification` — it is the highest-rank assertion, not an
+  agreement measure (assessment F3). The SQLite column is unchanged; the rename is
+  at the model/mapping/shaping boundary, and `has_conflict` / `min_classification`
+  carry the disagreement and range.
+- Multi-result `search_genes` / `search_diseases` headlines now summarize the set
+  ("2 genes match 'COL': COL1A1, COL2A1") instead of naming only the first hit (F1).
+- `_meta.next_commands` now fans out across every resolved entity on multi-result
+  and batch responses (capped at 5), keeping the unresolved-recovery hint as an
+  addition rather than the only entry (F2).
+- `minimal` mode keeps `n_submitters` so the headline's submitter count matches the
+  structured payload (F6).
 
 ### Added
 
+- **Consumer-uplift (assessment `docs/mcp-consumer-assessment.md`, target >9.5/10):**
+  - Typed `outputSchema` on all 12 tools — FastMCP now validates every structured
+    response against it; clients can validate/introspect field shapes (F4).
+  - `submitted_as_date_iso` (normalized ISO-8601 date) alongside the verbatim
+    `submitted_as_date` in standard/full (F5).
+  - `_meta.citation_short` one-line attribution stub in minimal/compact so a
+    sourced answer can be cited without a round-trip (F7).
+  - Reachable `ambiguous_query`: `resolve_identifier(kind='auto')` now errors when a
+    query matches both a gene and a disease, with disambiguation recovery commands.
 - **Batch curation tools** (closes `MCP-UX-ASSESSMENT.md`, target >9.5/10):
   - `get_genes_curations(genes=[...])` / `get_diseases_curations(diseases=[...])`
     collapse multi-entity questions into a single call (max 20; per-entity limit;

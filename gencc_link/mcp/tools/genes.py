@@ -13,6 +13,11 @@ from gencc_link.mcp.next_commands import (
     after_genes_curations,
     after_search_genes,
 )
+from gencc_link.mcp.schemas import (
+    GENE_CURATIONS_SCHEMA,
+    GENES_CURATIONS_SCHEMA,
+    SEARCH_GENES_SCHEMA,
+)
 from gencc_link.mcp.service_adapters import get_gencc_service
 from gencc_link.models.enums import ResponseMode
 
@@ -32,6 +37,7 @@ def register_gene_tools(mcp: FastMCP) -> None:
         name="search_genes",
         title="Search GenCC Genes",
         annotations=READ_ONLY_OPEN_WORLD,
+        output_schema=SEARCH_GENES_SCHEMA,
         tags={"gene", "search"},
         description=(
             "Search the GenCC gene catalog by approved symbol, partial symbol, or "
@@ -65,6 +71,7 @@ def register_gene_tools(mcp: FastMCP) -> None:
         name="get_gene_curations",
         title="Get Gene Curations",
         annotations=READ_ONLY_OPEN_WORLD,
+        output_schema=GENE_CURATIONS_SCHEMA,
         tags={"gene"},
         description=(
             "Return all GenCC gene-disease validity assertions for one gene "
@@ -99,6 +106,7 @@ def register_gene_tools(mcp: FastMCP) -> None:
         name="get_genes_curations",
         title="Get Curations for Many Genes",
         annotations=READ_ONLY_OPEN_WORLD,
+        output_schema=GENES_CURATIONS_SCHEMA,
         tags={"gene", "batch"},
         description=(
             "Batch form of get_gene_curations: pass a list of gene symbols or HGNC "

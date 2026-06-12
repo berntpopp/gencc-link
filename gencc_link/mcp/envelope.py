@@ -17,7 +17,7 @@ from typing import Any
 
 from pydantic import ValidationError as PydanticValidationError
 
-from gencc_link.constants import DATA_LICENSE, RECOMMENDED_CITATION
+from gencc_link.constants import CITATION_SHORT, DATA_LICENSE, RECOMMENDED_CITATION
 from gencc_link.exceptions import (
     AmbiguousQueryError,
     DataUnavailableError,
@@ -70,6 +70,7 @@ def _provenance_meta(response_mode: str | None = None) -> dict[str, Any]:
     }
     if response_mode in ("minimal", "compact"):
         meta["citation_ref"] = _CITATION_REF
+        meta["citation_short"] = CITATION_SHORT
     else:
         meta["recommended_citation"] = RECOMMENDED_CITATION
     if response_mode:

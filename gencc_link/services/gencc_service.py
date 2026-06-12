@@ -11,7 +11,7 @@ import time
 from typing import Any
 
 from gencc_link.data.base import GenCCRepositoryProtocol
-from gencc_link.exceptions import InvalidInputError, NotFoundError
+from gencc_link.exceptions import AmbiguousQueryError, InvalidInputError, NotFoundError
 from gencc_link.models import BuildMeta
 from gencc_link.models.enums import RESPONSE_MODES, ResponseMode
 from gencc_link.services import shaping
@@ -116,7 +116,7 @@ class GenCCService:
             "genes": [shaping.gene_summary_dict(g, mode) for g in hits],
         }
         if hits:
-            payload["headline"] = shaping.gene_headline(hits[0])
+            payload["headline"] = shaping.genes_search_headline(query.strip(), hits, total)
         trunc = shaping.truncation_block(total, limit, offset)
         if trunc:
             payload["truncated"] = trunc
@@ -144,7 +144,7 @@ class GenCCService:
             "diseases": [shaping.disease_summary_dict(d, mode) for d in hits],
         }
         if hits:
-            payload["headline"] = shaping.disease_headline(hits[0])
+            payload["headline"] = shaping.diseases_search_headline(query.strip(), hits, total)
         trunc = shaping.truncation_block(total, limit, offset)
         if trunc:
             payload["truncated"] = trunc
@@ -460,6 +460,13 @@ class GenCCService:
             disease = self._repo.resolve_disease(q)
             if disease is not None:
                 result["disease"] = shaping.disease_summary_dict(disease, "compact")
+        if kind == "auto" and result["gene"] is not None and result["disease"] is not None:
+            raise AmbiguousQueryError(
+                f"{query!r} matches both a gene ({result['gene']['gene_curie']}) and a "
+                f"disease ({result['disease']['disease_curie']}); re-run with kind='gene' "
+                "or kind='disease'.",
+                candidates=[result["gene"]["gene_curie"], result["disease"]["disease_curie"]],
+            )
         if result["gene"] is None and result["disease"] is None:
             raise NotFoundError(
                 f"Could not resolve {query!r} to a GenCC gene or disease. Try search_genes "

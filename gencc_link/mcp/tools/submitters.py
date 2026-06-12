@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Any
 from gencc_link.mcp.annotations import READ_ONLY_OPEN_WORLD
 from gencc_link.mcp.envelope import McpErrorContext, run_mcp_tool
 from gencc_link.mcp.next_commands import cmd
+from gencc_link.mcp.schemas import LIST_SUBMITTERS_SCHEMA
 from gencc_link.mcp.service_adapters import get_gencc_service
 
 if TYPE_CHECKING:
@@ -20,6 +21,7 @@ def register_submitter_tools(mcp: FastMCP) -> None:
         name="list_submitters",
         title="List GenCC Submitters",
         annotations=READ_ONLY_OPEN_WORLD,
+        output_schema=LIST_SUBMITTERS_SCHEMA,
         tags={"reference"},
         description=(
             "List the GenCC submitting organizations (ClinGen, Genomics England "

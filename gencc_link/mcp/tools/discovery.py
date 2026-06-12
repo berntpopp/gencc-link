@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Any
 from gencc_link.mcp.annotations import READ_ONLY_OPEN_WORLD
 from gencc_link.mcp.capabilities import build_capabilities
 from gencc_link.mcp.envelope import McpErrorContext, run_mcp_tool
+from gencc_link.mcp.schemas import CAPABILITIES_SCHEMA, DIAGNOSTICS_SCHEMA
 from gencc_link.mcp.service_adapters import get_gencc_service
 
 if TYPE_CHECKING:
@@ -20,6 +21,7 @@ def register_discovery_tools(mcp: FastMCP) -> None:
         name="get_server_capabilities",
         title="Get Server Capabilities",
         annotations=READ_ONLY_OPEN_WORLD,
+        output_schema=CAPABILITIES_SCHEMA,
         tags={"discovery"},
         description=(
             "Return the GenCC-Link tool inventory, classification vocabulary and "
@@ -40,6 +42,7 @@ def register_discovery_tools(mcp: FastMCP) -> None:
         name="get_gencc_diagnostics",
         title="Get GenCC Diagnostics",
         annotations=READ_ONLY_OPEN_WORLD,
+        output_schema=DIAGNOSTICS_SCHEMA,
         tags={"discovery"},
         description=(
             "Report build provenance and data freshness: GenCC run date, source "

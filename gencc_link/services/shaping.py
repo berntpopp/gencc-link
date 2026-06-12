@@ -7,6 +7,7 @@ parsing the whole payload.
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
 from gencc_link.models import (
@@ -42,15 +43,63 @@ def disease_headline(disease: DiseaseSummary) -> str:
 def assertion_headline(a: GeneDiseaseAssertion) -> str:
     """One-line summary for a gene-disease assertion."""
     label = a.disease_title or a.disease_curie
-    consensus = a.consensus_classification or "no classification"
+    strongest = a.strongest_classification or "no classification"
     conflict = " — CONFLICT" if a.has_conflict else ""
     spread = ""
-    if a.min_classification and a.min_classification != a.consensus_classification:
-        spread = f" (range {a.consensus_classification}..{a.min_classification})"
+    if a.min_classification and a.min_classification != a.strongest_classification:
+        spread = f" (range {a.strongest_classification}..{a.min_classification})"
     return (
-        f"{a.gene_symbol} - {label}: {consensus} from {a.n_submitters} "
+        f"{a.gene_symbol} - {label}: {strongest} from {a.n_submitters} "
         f"submitter(s){spread}{conflict}."
     )
+
+
+_MAX_HEADLINE_NAMES = 5
+
+_ISO_DATE = re.compile(r"^\s*(\d{4})-(\d{2})-(\d{2})")
+
+
+def normalize_submitted_date(raw: str | None) -> str | None:
+    """Normalize a verbatim submitter date to an ISO-8601 date (YYYY-MM-DD).
+
+    GenCC passes dates through verbatim, mixing '2017-08-29 00:00:00' and ISO-8601
+    '2024-08-29T00:00:00.000000Z'. The reliably-present, comparable granularity is
+    the calendar date; returns None when no valid leading date can be parsed.
+    """
+    if not raw:
+        return None
+    match = _ISO_DATE.match(raw)
+    if not match:
+        return None
+    year, month, day = (int(part) for part in match.groups())
+    if not (1 <= month <= 12 and 1 <= day <= 31):
+        return None
+    return f"{year:04d}-{month:02d}-{day:02d}"
+
+
+def _search_headline(query: str, names: list[str], returned: int, total: int, noun: str) -> str:
+    """Set-aware headline: '<scope> match '<query>': name1, name2, …, +N more.'"""
+    plural = f"{noun}s" if total != 1 else noun
+    scope = f"{returned} of {total} {plural}" if total > returned else f"{total} {plural}"
+    shown = ", ".join(names[:_MAX_HEADLINE_NAMES])
+    extra = len(names) - _MAX_HEADLINE_NAMES
+    more = f", +{extra} more" if extra > 0 else ""
+    return f"{scope} match '{query}': {shown}{more}."
+
+
+def genes_search_headline(query: str, hits: list[GeneSummary], total: int) -> str:
+    """Headline for a gene search: rich single line for one exact hit, else set summary."""
+    if len(hits) == 1 and total == 1:
+        return gene_headline(hits[0])
+    return _search_headline(query, [g.gene_symbol for g in hits], len(hits), total, "gene")
+
+
+def diseases_search_headline(query: str, hits: list[DiseaseSummary], total: int) -> str:
+    """Headline for a disease search: rich single line for one exact hit, else set summary."""
+    if len(hits) == 1 and total == 1:
+        return disease_headline(hits[0])
+    names = [d.disease_title or d.disease_curie for d in hits]
+    return _search_headline(query, names, len(hits), total, "disease")
 
 
 def _submitter_dict(s: Any, mode: ResponseMode) -> dict[str, Any]:
@@ -63,6 +112,7 @@ def _submitter_dict(s: Any, mode: ResponseMode) -> dict[str, Any]:
     }
     if mode in ("standard", "full"):
         base["submitted_as_date"] = data.get("submitted_as_date")
+        base["submitted_as_date_iso"] = normalize_submitted_date(data.get("submitted_as_date"))
         base["public_report_url"] = data.get("public_report_url")
     if mode == "full":
         base["submitter_curie"] = data.get("submitter_curie")
@@ -93,7 +143,7 @@ def assertion_dict(
     if not (omit_disease and trim):
         out["disease_curie"] = a.disease_curie
         out["disease_title"] = a.disease_title
-    out["consensus_classification"] = a.consensus_classification
+    out["strongest_classification"] = a.strongest_classification
     out["n_submitters"] = a.n_submitters
     out["n_submissions"] = a.n_submissions
     out["has_conflict"] = a.has_conflict
@@ -120,12 +170,12 @@ def gene_summary_dict(gene: GeneSummary, mode: ResponseMode) -> dict[str, Any]:
         "gene_curie": gene.gene_curie,
         "gene_symbol": gene.gene_symbol,
         "n_diseases": gene.n_diseases,
+        "n_submitters": gene.n_submitters,
         "max_classification": gene.max_classification,
         "has_conflict": gene.has_conflict,
     }
     if mode != "minimal":
         out["n_submissions"] = gene.n_submissions
-        out["n_submitters"] = gene.n_submitters
     return out
 
 
@@ -135,11 +185,11 @@ def disease_summary_dict(disease: DiseaseSummary, mode: ResponseMode) -> dict[st
         "disease_curie": disease.disease_curie,
         "disease_title": disease.disease_title,
         "n_genes": disease.n_genes,
+        "n_submitters": disease.n_submitters,
         "max_classification": disease.max_classification,
     }
     if mode != "minimal":
         out["n_submissions"] = disease.n_submissions
-        out["n_submitters"] = disease.n_submitters
     return out
 
 
@@ -166,6 +216,7 @@ def submission_dict(s: SubmissionRecord) -> dict[str, Any]:
         "disease_original_curie": s.disease_original_curie,
         "disease_original_title": s.disease_original_title,
         "submitted_as_date": s.submitted_as_date,
+        "submitted_as_date_iso": normalize_submitted_date(s.submitted_as_date),
         "public_report_url": s.public_report_url,
         "assertion_criteria_url": s.assertion_criteria_url,
         "pmids": s.pmids,

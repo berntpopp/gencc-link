@@ -135,8 +135,8 @@ database is built (`status: ready`) or needs building (`status: unavailable`).
 | `get_gencc_diagnostics` | Build provenance + row/gene/disease/submitter counts + daily download-quota headroom |
 | `search_genes` | Resolve symbol / HGNC id / partial text to genes (FTS) |
 | `search_diseases` | Resolve title / MONDO / OMIM id to diseases (FTS) |
-| `get_gene_curations` | All gene-disease assertions for a gene, with consensus + conflict |
-| `get_disease_curations` | All genes asserted for a disease, with consensus |
+| `get_gene_curations` | All gene-disease assertions for a gene, with strongest classification + conflict |
+| `get_disease_curations` | All genes asserted for a disease, with strongest classification + conflict |
 | `get_genes_curations` | Batch `get_gene_curations`: up to 20 genes in one call (misses in `unresolved`) |
 | `get_diseases_curations` | Batch `get_disease_curations`: up to 20 diseases in one call (misses in `unresolved`) |
 | `get_gene_disease_assertion` | One pair: per-submitter classifications, MOI, PMIDs, URLs + conflict analysis |
@@ -146,7 +146,9 @@ database is built (`status: ready`) or needs building (`status: unavailable`).
 
 Every response envelope carries `_meta` with `request_id`, `elapsed_ms`,
 `next_commands` (on success **and** error), and either `recommended_citation`
-(`standard`/`full`) or a cacheable `citation_ref` (`minimal`/`compact`).
+(`standard`/`full`) or a cacheable `citation_ref` plus a one-line `citation_short`
+attribution stub (`minimal`/`compact`). Every tool also advertises a typed
+`outputSchema`, so structured results can be validated client-side.
 
 ## Troubleshooting
 

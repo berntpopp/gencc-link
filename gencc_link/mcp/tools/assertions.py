@@ -9,6 +9,7 @@ from pydantic import Field
 from gencc_link.mcp.annotations import READ_ONLY_OPEN_WORLD
 from gencc_link.mcp.envelope import McpErrorContext, run_mcp_tool
 from gencc_link.mcp.next_commands import after_assertion, cmd
+from gencc_link.mcp.schemas import ASSERTION_SCHEMA, FIND_CURATIONS_SCHEMA, RESOLVE_SCHEMA
 from gencc_link.mcp.service_adapters import get_gencc_service
 from gencc_link.models.enums import ResponseMode
 
@@ -28,6 +29,7 @@ def register_assertion_tools(mcp: FastMCP) -> None:
         name="get_gene_disease_assertion",
         title="Get Gene-Disease Assertion",
         annotations=READ_ONLY_OPEN_WORLD,
+        output_schema=ASSERTION_SCHEMA,
         tags={"assertion"},
         description=(
             "Deep dive on one gene-disease pair: every submitter's classification, "
@@ -66,6 +68,7 @@ def register_assertion_tools(mcp: FastMCP) -> None:
         name="find_curations",
         title="Find GenCC Curations",
         annotations=READ_ONLY_OPEN_WORLD,
+        output_schema=FIND_CURATIONS_SCHEMA,
         tags={"assertion", "search"},
         description=(
             "Filter aggregated gene-disease assertions by classification(s), "
@@ -131,11 +134,13 @@ def register_assertion_tools(mcp: FastMCP) -> None:
         name="resolve_identifier",
         title="Resolve Identifier",
         annotations=READ_ONLY_OPEN_WORLD,
+        output_schema=RESOLVE_SCHEMA,
         tags={"discovery"},
         description=(
             "Resolve free text to a canonical GenCC gene (HGNC) and/or disease "
             "(MONDO) identifier by exact symbol/id/title match. Use kind='gene' or "
-            "kind='disease' to disambiguate; default 'auto' tries both."
+            "kind='disease' to disambiguate; default 'auto' tries both and returns "
+            "ambiguous_query if the text matches both a gene and a disease."
         ),
     )
     async def resolve_identifier(query: str, kind: str = "auto") -> dict[str, Any]:

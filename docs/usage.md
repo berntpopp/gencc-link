@@ -30,18 +30,19 @@ counts. If it reports the database is unavailable, run `make data` (or
    `resolve_identifier`.
 2. **List the gene's assertions.** `get_gene_curations` returns every
    gene-disease assertion for the gene, grouped by disease, each with the
-   consensus classification and a conflict flag.
+   `strongest_classification` (highest-rank across submitters) and a conflict flag.
 3. **Drill into one pair.** `get_gene_disease_assertion` takes a gene + disease
    and returns every submitter's classification, mode of inheritance, PMIDs,
-   public-report and assertion-criteria URLs, dates, plus the consensus and a
-   full conflict analysis.
+   public-report and assertion-criteria URLs, dates (verbatim plus a normalized
+   `submitted_as_date_iso` in standard/full), plus the `strongest_classification`
+   and a full conflict analysis.
 
 ### Disease-first
 
 1. `search_diseases` resolves a disease title, MONDO CURIE (`MONDO:0008426`), or
    OMIM CURIE to diseases with gene counts (FTS-backed).
 2. `get_disease_curations` returns all genes asserted for that disease, each with
-   its consensus classification.
+   its `strongest_classification` and a conflict flag.
 
 ### Several genes or diseases at once
 
@@ -79,8 +80,8 @@ via `get_server_capabilities` (`classifications`, `inheritance_modes`) and
 `list_submitters`.
 
 These three filters match at the **submission level** (any submitter gave that
-value), not the consensus, so a row can read `consensus: "Strong"` while it
-matched on a single `Refuted Evidence` submission. Each result row therefore
+value), not the consensus, so a row can read `strongest_classification: "Strong"`
+while it matched on a single `Refuted Evidence` submission. Each result row therefore
 carries a `matched` field naming the triggering submission(s)
 (`submitter_title` + `classification_title` + `moi_title`) in
 `compact`/`standard`/`full`.
@@ -116,7 +117,8 @@ back `search_genes` with the same query). Every `_meta` also carries a
 To save tokens, `minimal`/`compact` omit the redundant parent identifier from
 list rows (the gene in `get_gene_curations`, the disease in
 `get_disease_curations`) and replace the full citation with a cacheable
-`_meta.citation_ref = "gencc://citation"`; `standard`/`full` keep both.
+`_meta.citation_ref = "gencc://citation"` plus a one-line
+`_meta.citation_short` attribution stub; `standard`/`full` keep the full citation.
 
 ## Conflict reading
 

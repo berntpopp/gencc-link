@@ -165,8 +165,11 @@ get sentinel low ranks so they never win a consensus:
 
 For each gene-disease pair:
 
-- **`consensus_classification`** = the classification with the highest rank among
-  all submitters for that pair.
+- **`strongest_classification`** = the classification with the highest rank among
+  all submitters for that pair (it is *not* an agreement measure — read
+  `has_conflict` and `min_classification` for disagreement and the range). Surfaced
+  to consumers under this name; the underlying `gene_disease` DB column is still
+  named `consensus_classification`.
 - **`has_conflict`** = `true` when at least one submitter asserts a *supporting*
   classification (Definitive / Strong / Moderate) **and** at least one other
   submitter asserts an *against* classification (Disputed Evidence /

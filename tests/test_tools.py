@@ -43,6 +43,19 @@ async def test_list_resources(mcp_client) -> None:
     assert uris == EXPECTED_RESOURCES
 
 
+async def test_all_tools_advertise_typed_output_schema(mcp_client) -> None:
+    tools = await mcp_client.list_tools()
+    assert tools
+    for t in tools:
+        schema = t.outputSchema
+        assert schema is not None, t.name
+        props = schema.get("properties", {})
+        assert "success" in props, t.name
+        assert "_meta" in props, t.name
+        # at least one tool-specific top-level field beyond the envelope
+        assert len(props) > 3, t.name
+
+
 async def test_search_genes_success(mcp_client) -> None:
     result = await mcp_client.call_tool("search_genes", {"query": "SKI"})
     data = result.structured_content
@@ -205,6 +218,39 @@ class TestEvalHardening:
         data = result.structured_content
         assert data["_meta"]["citation_ref"] == "gencc://citation"
 
+    async def test_search_genes_multi_headline_names_all(self, mcp_client) -> None:
+        result = await mcp_client.call_tool("search_genes", {"query": "COL"})
+        data = result.structured_content
+        symbols = {g["gene_symbol"] for g in data["genes"]}
+        assert {"COL1A1", "COL2A1"} <= symbols
+        for sym in symbols:  # fixture page is <=5 hits, so every symbol is named
+            assert sym in data["headline"]
+
+    async def test_assertion_full_has_iso_date(self, mcp_client) -> None:
+        result = await mcp_client.call_tool(
+            "get_gene_disease_assertion",
+            {"gene": "GLA", "disease": "MONDO:0010526", "response_mode": "full"},
+        )
+        data = result.structured_content
+        subs = data["assertion"]["submitters"]
+        assert any("submitted_as_date_iso" in s for s in subs)
+
+    async def test_compact_has_citation_short(self, mcp_client) -> None:
+        result = await mcp_client.call_tool(
+            "get_gene_curations", {"gene": "SKI", "response_mode": "compact"}
+        )
+        meta = result.structured_content["_meta"]
+        assert meta["citation_short"] == "GenCC (thegencc.org), CC0-1.0"
+        assert meta["citation_ref"] == "gencc://citation"
+
+    async def test_full_uses_full_citation_not_short(self, mcp_client) -> None:
+        result = await mcp_client.call_tool(
+            "get_gene_curations", {"gene": "SKI", "response_mode": "full"}
+        )
+        meta = result.structured_content["_meta"]
+        assert "recommended_citation" in meta
+        assert "citation_short" not in meta
+
 
 class TestBatchTools:
     async def test_genes_curations_multi(self, mcp_client) -> None:
@@ -220,10 +266,10 @@ class TestBatchTools:
         data = result.structured_content
         assert data["success"] is True
         assert data["unresolved"][0]["input"] == "NOTAGENE"
-        assert data["_meta"]["next_commands"][0] == {
-            "tool": "search_genes",
-            "arguments": {"query": "NOTAGENE"},
-        }
+        cmds = data["_meta"]["next_commands"]
+        # resolved gene drills down; the unresolved input is still offered (as an addition)
+        assert any(c["tool"] == "get_gene_disease_assertion" for c in cmds)
+        assert {"tool": "search_genes", "arguments": {"query": "NOTAGENE"}} in cmds
 
     async def test_genes_curations_over_cap_invalid(self, mcp_client) -> None:
         result = await mcp_client.call_tool(

@@ -137,7 +137,7 @@ class TestPairs:
         a = repository.get_gene_disease("HGNC:4296", "MONDO:0010526")
         assert a is not None
         assert a.has_conflict is True
-        assert a.consensus_classification == "Definitive"
+        assert a.strongest_classification == "Definitive"
 
     def test_get_gene_disease_none(self, repository: GenCCRepository) -> None:
         assert repository.get_gene_disease("HGNC:10896", "MONDO:0010526") is None

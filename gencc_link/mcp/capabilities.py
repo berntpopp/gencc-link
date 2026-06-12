@@ -114,11 +114,21 @@ def _static_surface() -> dict[str, Any]:
             "(standard/full); minimal/compact emit _meta.citation_ref instead",
             "citation_ref": "_meta.citation_ref: 'gencc://citation' in minimal/compact; "
             "dereference once and cache",
+            "citation_short": "_meta.citation_short: a one-line attribution stub "
+            "(minimal/compact) so a sourced answer can be cited without a round-trip; "
+            "the full verbatim citation stays at gencc://citation and in standard/full.",
             "request_id": "_meta.request_id + _meta.elapsed_ms: per-call trace id and "
             "server-side timing on every envelope",
             "matched": "find_curations: the submission(s) that satisfied a submission-level "
             "classification/submitter/moi filter (compact/standard/full)",
             "has_conflict": "true when supporting and against assertions coexist for a pair",
+            "submitted_as_date_iso": "per-submitter/submission: submitted_as_date "
+            "normalized to an ISO-8601 date (YYYY-MM-DD); the verbatim "
+            "submitted_as_date is retained alongside it (standard/full).",
+            "strongest_classification": "gene-disease pairs: the highest-rank "
+            "classification asserted by any submitter (e.g. Definitive). NOT a "
+            "consensus/agreement measure -- a pair can be Definitive yet conflicted; "
+            "read has_conflict and min_classification for the spread.",
             "capabilities_version": "16-char content hash of the static surface; also echoed "
             "by get_gencc_diagnostics for a near-zero-token drift probe (re-fetch this "
             "document only when it changes)",
@@ -162,7 +172,9 @@ def build_capabilities() -> dict[str, Any]:
     surface["data_notes"] = [
         "Some submitter fields pass through verbatim: assertion_criteria_url may hold "
         "non-URL text (e.g. 'PMID: 28106320'); submitted_as_date mixes formats "
-        "(e.g. '2018-03-30 13:31:56' vs ISO 8601 '2024-07-23T00:00:00.000000Z').",
+        "(e.g. '2018-03-30 13:31:56' vs ISO 8601 '2024-07-23T00:00:00.000000Z'). "
+        "A normalized submitted_as_date_iso (YYYY-MM-DD) is emitted alongside the "
+        "verbatim value in standard/full.",
         "The structured pmids array is normalised and can correct malformed PMIDs in "
         "the raw submitter notes text.",
         "find_curations classification/submitter/moi match at the submission level "
