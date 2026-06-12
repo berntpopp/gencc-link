@@ -251,6 +251,15 @@ class TestEvalHardening:
         assert "recommended_citation" in meta
         assert "citation_short" not in meta
 
+    async def test_standard_uses_citation_ref_not_full(self, mcp_client) -> None:
+        result = await mcp_client.call_tool(
+            "get_gene_curations", {"gene": "SKI", "response_mode": "standard"}
+        )
+        meta = result.structured_content["_meta"]
+        assert meta["citation_ref"] == "gencc://citation"
+        assert meta["citation_short"] == "GenCC (thegencc.org), CC0-1.0"
+        assert "recommended_citation" not in meta
+
     async def test_assertion_minimal_omits_submitters(self, mcp_client) -> None:
         result = await mcp_client.call_tool(
             "get_gene_disease_assertion",

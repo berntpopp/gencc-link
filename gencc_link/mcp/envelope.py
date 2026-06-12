@@ -68,10 +68,10 @@ def _provenance_meta(response_mode: str | None = None) -> dict[str, Any]:
         "unsafe_for_clinical_use": True,
         "data_license": DATA_LICENSE,
     }
-    if response_mode in ("minimal", "compact"):
+    if response_mode in ("minimal", "compact", "standard"):
         meta["citation_ref"] = _CITATION_REF
         meta["citation_short"] = CITATION_SHORT
-    else:
+    else:  # full (and the unset/error default) keep the verbatim citation
         meta["recommended_citation"] = RECOMMENDED_CITATION
     if response_mode:
         meta["response_mode"] = response_mode

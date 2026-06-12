@@ -177,6 +177,15 @@ class TestCitationByMode:
         out = await run_mcp_tool("t", body, response_mode="minimal")
         assert out["_meta"]["citation_ref"] == "gencc://citation"
 
+    async def test_standard_uses_citation_ref(self) -> None:
+        async def body() -> dict[str, Any]:
+            return {}
+
+        out = await run_mcp_tool("t", body, response_mode="standard")
+        assert out["_meta"]["citation_ref"] == "gencc://citation"
+        assert out["_meta"]["citation_short"]
+        assert "recommended_citation" not in out["_meta"]
+
     async def test_full_uses_full_citation(self) -> None:
         async def body() -> dict[str, Any]:
             return {}

@@ -26,8 +26,10 @@ GENCC_SERVER_INSTRUCTIONS = (
     "ids_only=true returns just id pairs for cheap paging). Each "
     "gene-disease pair carries a strongest_classification and a has_conflict flag "
     "(supporting vs. refuting submitters). Results are JSON with a `success` "
-    "flag, a plain-English `headline`, `_meta.next_commands`, and "
-    "`recommended_citation`. response_mode (minimal|compact|standard|full) trims "
+    "flag, a plain-English `headline`, `_meta.next_commands`, and a citation "
+    "(full `recommended_citation` in full mode; `citation_short` + `citation_ref` "
+    "to gencc://citation otherwise). "
+    "response_mode (minimal|compact|standard|full) trims "
     "tokens; start compact. Call get_server_capabilities or read "
     "gencc://capabilities for the full surface. " + RESEARCH_USE_NOTICE
 )
