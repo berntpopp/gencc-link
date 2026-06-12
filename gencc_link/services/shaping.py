@@ -53,6 +53,34 @@ def assertion_headline(a: GeneDiseaseAssertion) -> str:
     )
 
 
+_MAX_HEADLINE_NAMES = 5
+
+
+def _search_headline(query: str, names: list[str], returned: int, total: int, noun: str) -> str:
+    """Set-aware headline: '<scope> match '<query>': name1, name2, …, +N more.'"""
+    plural = f"{noun}s" if total != 1 else noun
+    scope = f"{returned} of {total} {plural}" if total > returned else f"{total} {plural}"
+    shown = ", ".join(names[:_MAX_HEADLINE_NAMES])
+    extra = len(names) - _MAX_HEADLINE_NAMES
+    more = f", +{extra} more" if extra > 0 else ""
+    return f"{scope} match '{query}': {shown}{more}."
+
+
+def genes_search_headline(query: str, hits: list[GeneSummary], total: int) -> str:
+    """Headline for a gene search: rich single line for one exact hit, else set summary."""
+    if len(hits) == 1 and total == 1:
+        return gene_headline(hits[0])
+    return _search_headline(query, [g.gene_symbol for g in hits], len(hits), total, "gene")
+
+
+def diseases_search_headline(query: str, hits: list[DiseaseSummary], total: int) -> str:
+    """Headline for a disease search: rich single line for one exact hit, else set summary."""
+    if len(hits) == 1 and total == 1:
+        return disease_headline(hits[0])
+    names = [d.disease_title or d.disease_curie for d in hits]
+    return _search_headline(query, names, len(hits), total, "disease")
+
+
 def _submitter_dict(s: Any, mode: ResponseMode) -> dict[str, Any]:
     """Shape one SubmitterAssertion (pydantic or dict-like) per mode."""
     data = s if isinstance(s, dict) else s.model_dump()

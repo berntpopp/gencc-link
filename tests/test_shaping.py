@@ -285,3 +285,56 @@ class TestOmitParentId:
     def test_omit_ignored_in_standard(self) -> None:
         out = shaping.assertion_dict(_assertion(), "standard", omit_gene=True)
         assert out["gene_curie"] == "HGNC:4296"
+
+
+class TestSearchHeadlines:
+    def _gene(self, symbol: str) -> GeneSummary:
+        return GeneSummary(
+            gene_curie=f"HGNC:{symbol}",
+            gene_symbol=symbol,
+            n_submissions=1,
+            n_diseases=1,
+            n_submitters=1,
+            max_classification="Definitive",
+        )
+
+    def _disease(self, curie: str, title: str | None) -> DiseaseSummary:
+        return DiseaseSummary(
+            disease_curie=curie,
+            disease_title=title,
+            n_submissions=1,
+            n_genes=1,
+            n_submitters=1,
+            max_classification="Definitive",
+        )
+
+    def test_single_total_one_uses_rich_headline(self) -> None:
+        head = shaping.genes_search_headline("SKI", [self._gene("SKI")], total=1)
+        assert head == shaping.gene_headline(self._gene("SKI"))
+
+    def test_two_hits_names_all(self) -> None:
+        hits = [self._gene("COL1A1"), self._gene("COL2A1")]
+        head = shaping.genes_search_headline("COL", hits, total=2)
+        assert "2 genes match 'COL'" in head
+        assert "COL1A1" in head and "COL2A1" in head
+
+    def test_sliced_shows_of_total(self) -> None:
+        hits = [
+            self._disease("MONDO:1", "Marfan syndrome"),
+            self._disease("MONDO:2", "Stickler syndrome"),
+            self._disease("MONDO:3", "long QT syndrome 1"),
+        ]
+        head = shaping.diseases_search_headline("syndrome", hits, total=1920)
+        assert "3 of 1920 diseases match 'syndrome'" in head
+        assert "Marfan syndrome" in head
+
+    def test_caps_names_at_five(self) -> None:
+        hits = [self._gene(f"G{i}") for i in range(7)]
+        head = shaping.genes_search_headline("G", hits, total=7)
+        assert "+2 more" in head
+        assert head.count(",") >= 4  # 5 names listed
+
+    def test_disease_falls_back_to_curie(self) -> None:
+        hits = [self._disease("MONDO:1", None), self._disease("MONDO:2", None)]
+        head = shaping.diseases_search_headline("x", hits, total=2)
+        assert "MONDO:1" in head and "MONDO:2" in head

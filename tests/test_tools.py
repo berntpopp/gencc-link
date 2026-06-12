@@ -205,6 +205,14 @@ class TestEvalHardening:
         data = result.structured_content
         assert data["_meta"]["citation_ref"] == "gencc://citation"
 
+    async def test_search_genes_multi_headline_names_all(self, mcp_client) -> None:
+        result = await mcp_client.call_tool("search_genes", {"query": "COL"})
+        data = result.structured_content
+        symbols = {g["gene_symbol"] for g in data["genes"]}
+        assert {"COL1A1", "COL2A1"} <= symbols
+        for sym in symbols:  # fixture page is <=5 hits, so every symbol is named
+            assert sym in data["headline"]
+
 
 class TestBatchTools:
     async def test_genes_curations_multi(self, mcp_client) -> None:

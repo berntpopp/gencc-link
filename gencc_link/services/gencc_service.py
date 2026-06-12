@@ -116,7 +116,7 @@ class GenCCService:
             "genes": [shaping.gene_summary_dict(g, mode) for g in hits],
         }
         if hits:
-            payload["headline"] = shaping.gene_headline(hits[0])
+            payload["headline"] = shaping.genes_search_headline(query.strip(), hits, total)
         trunc = shaping.truncation_block(total, limit, offset)
         if trunc:
             payload["truncated"] = trunc
@@ -144,7 +144,7 @@ class GenCCService:
             "diseases": [shaping.disease_summary_dict(d, mode) for d in hits],
         }
         if hits:
-            payload["headline"] = shaping.disease_headline(hits[0])
+            payload["headline"] = shaping.diseases_search_headline(query.strip(), hits, total)
         trunc = shaping.truncation_block(total, limit, offset)
         if trunc:
             payload["truncated"] = trunc
