@@ -291,6 +291,15 @@ class TestEvalHardening:
         assert sizes == sorted(sizes) and len(set(sizes)) == 4  # strictly increasing
 
 
+    async def test_capabilities_documents_field_errors_and_cursor(self, mcp_client) -> None:
+        result = await mcp_client.call_tool("get_server_capabilities", {})
+        rf = result.structured_content["response_fields"]
+        assert "field_errors" in rf
+        assert "next_cursor" in rf
+        assert "cursor" in rf
+        resources = result.structured_content["resources"]
+        assert "gencc://research-use" in resources
+
     async def test_resolve_identifier_ambiguous_query(
         self, mcp_client, service, monkeypatch
     ) -> None:
