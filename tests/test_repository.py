@@ -219,6 +219,38 @@ class TestFindAssertions:
         assert total == 2
         assert len(rows) == 1
 
+    def test_find_assertions_pair_lookup_matches_and_orders(
+        self, repository: GenCCRepository
+    ) -> None:
+        # Refuted Evidence exists for the GLA conflict pair in the fixture.
+        page, total, matched = repository.find_assertions(
+            classification=["Refuted Evidence"], limit=50, offset=0
+        )
+        assert total == len(page)
+        assert page, "expected at least one Refuted Evidence pair"
+        # Every returned pair is present in the matched map (submission-level filter active).
+        for a in page:
+            assert (a.gene_curie, a.disease_curie) in matched
+        # Ordering is by consensus_rank DESC then gene_symbol then disease_title.
+        ranks = [a.consensus_rank for a in page if a.consensus_rank is not None]
+        assert ranks == sorted(ranks, reverse=True)
+
+    def test_find_assertions_has_conflict_filter_with_submission_filter(
+        self, repository: GenCCRepository
+    ) -> None:
+        # GLA's Refuted pair conflicts; has_conflict=False must exclude it.
+        confl, _t1, matched_confl = repository.find_assertions(
+            classification=["Refuted Evidence"], has_conflict=True, limit=50, offset=0
+        )
+        noconfl, _t2, _m2 = repository.find_assertions(
+            classification=["Refuted Evidence"], has_conflict=False, limit=50, offset=0
+        )
+        assert all(a.has_conflict for a in confl)
+        assert all(not a.has_conflict for a in noconfl)
+        # matched map is pruned to the rows that survived the conflict filter.
+        keys = {(a.gene_curie, a.disease_curie) for a in confl}
+        assert all(key in keys for key in matched_confl)
+
 
 class TestFindMatched:
     def test_distinct_moi_includes_fixture_values(self, repository: GenCCRepository) -> None:
