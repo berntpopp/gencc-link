@@ -9,8 +9,10 @@ happy path and converts any exception into a structured error envelope dict
 from __future__ import annotations
 
 import logging
+import time
+import uuid
 from collections.abc import Awaitable, Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 from pydantic import ValidationError as PydanticValidationError
@@ -24,6 +26,7 @@ from gencc_link.exceptions import (
     NotFoundError,
     QuotaExceededError,
 )
+from gencc_link.mcp.next_commands import recovery_commands
 
 logger = logging.getLogger(__name__)
 
@@ -31,11 +34,9 @@ logger = logging.getLogger(__name__)
 # database is built, so service_adapters calls set_data_release() at startup.
 _DATA_RELEASE: str | None = None
 
-_BASE_META: dict[str, Any] = {
-    "unsafe_for_clinical_use": True,
-    "data_license": DATA_LICENSE,
-    "recommended_citation": RECOMMENDED_CITATION,
-}
+# Short stable URI for the full citation; emitted instead of the ~260-char string
+# in minimal/compact so a warm client can dereference it once and cache.
+_CITATION_REF = "gencc://citation"
 
 
 def set_data_release(run_date: str | None) -> None:
@@ -46,9 +47,10 @@ def set_data_release(run_date: str | None) -> None:
 
 @dataclass
 class McpErrorContext:
-    """Per-call context so envelopes can name the failing tool."""
+    """Per-call context so envelopes can name the failing tool and build recovery steps."""
 
     tool_name: str
+    arguments: dict[str, Any] = field(default_factory=dict)
 
 
 class McpToolError(Exception):
@@ -60,8 +62,18 @@ class McpToolError(Exception):
         self.message = message
 
 
-def _provenance_meta() -> dict[str, Any]:
-    meta = dict(_BASE_META)
+def _provenance_meta(response_mode: str | None = None) -> dict[str, Any]:
+    """Provenance block for ``_meta``; mode-aware citation to cut per-call tokens."""
+    meta: dict[str, Any] = {
+        "unsafe_for_clinical_use": True,
+        "data_license": DATA_LICENSE,
+    }
+    if response_mode in ("minimal", "compact"):
+        meta["citation_ref"] = _CITATION_REF
+    else:
+        meta["recommended_citation"] = RECOMMENDED_CITATION
+    if response_mode:
+        meta["response_mode"] = response_mode
     if _DATA_RELEASE:
         meta["gencc_release"] = _DATA_RELEASE
     return meta
@@ -120,15 +132,28 @@ def _field_errors(exc: BaseException) -> list[dict[str, str]] | None:
     return None
 
 
-def _error_envelope(exc: BaseException, context: McpErrorContext) -> dict[str, Any]:
+def _error_envelope(
+    exc: BaseException,
+    context: McpErrorContext,
+    *,
+    request_id: str,
+    elapsed_ms: float,
+) -> dict[str, Any]:
     error_code, message, retryable = _classify(exc)
+    field_name = getattr(exc, "field", None)
+    meta: dict[str, Any] = {"tool": context.tool_name, **_provenance_meta()}
+    meta["request_id"] = request_id
+    meta["elapsed_ms"] = elapsed_ms
+    nexts = recovery_commands(context.tool_name, error_code, context.arguments, field_name)
+    if nexts:
+        meta["next_commands"] = nexts
     envelope: dict[str, Any] = {
         "success": False,
         "error_code": error_code,
         "message": message,
         "retryable": retryable,
         "recovery_action": _recovery_action(error_code, retryable),
-        "_meta": {"tool": context.tool_name, **_provenance_meta()},
+        "_meta": meta,
     }
     field_errors = _field_errors(exc)
     if field_errors is not None:
@@ -141,18 +166,32 @@ async def run_mcp_tool(
     call: Callable[[], Awaitable[dict[str, Any]]],
     *,
     context: McpErrorContext | None = None,
+    response_mode: str | None = None,
 ) -> dict[str, Any]:
-    """Execute a tool body, returning the result dict or a structured error dict."""
+    """Execute a tool body, returning the result dict or a structured error dict.
+
+    Adds ``_meta.request_id`` + ``_meta.elapsed_ms`` (trace + server timing) and a
+    mode-aware citation to every envelope, success or error.
+    """
     ctx = context or McpErrorContext(tool_name=tool_name)
+    request_id = uuid.uuid4().hex[:12]
+    start = time.perf_counter()
     try:
         result = await call()
+        elapsed_ms = round((time.perf_counter() - start) * 1000, 2)
         if isinstance(result, dict):
             result.setdefault("success", True)
             existing_meta: dict[str, Any] = result.get("_meta") or {}
-            result["_meta"] = {**existing_meta, **_provenance_meta()}
+            result["_meta"] = {
+                **existing_meta,
+                **_provenance_meta(response_mode),
+                "request_id": request_id,
+                "elapsed_ms": elapsed_ms,
+            }
         return result
     except Exception as exc:  # broad catch is the error-boundary contract
-        envelope = _error_envelope(exc, ctx)
+        elapsed_ms = round((time.perf_counter() - start) * 1000, 2)
+        envelope = _error_envelope(exc, ctx, request_id=request_id, elapsed_ms=elapsed_ms)
         logger.warning(
             "mcp_tool_error tool=%s code=%s exc=%s",
             tool_name,
