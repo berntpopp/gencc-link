@@ -11,12 +11,14 @@ with consensus and conflict detection.
 
 - **GenCC gene-disease validity** harmonized across member submitters (ClinGen,
   Genomics England PanelApp, Orphanet, Ambry, Invitae, Illumina, and others).
-- **Consensus + conflict detection** — for each gene-disease pair, the consensus
-  classification and a flag when supporting and against assertions coexist.
+- **Strongest-classification + conflict detection** — for each gene-disease pair,
+  the `strongest_classification` (highest rank across submitters) and a
+  `has_conflict` flag when supporting and against assertions coexist.
 - **Local SQLite + FTS5 store** built from the weekly GenCC bulk export — fast,
   deterministic, no upstream API at query time.
-- **10 MCP tools** with token-efficient `response_mode` shaping, plain-English
-  headlines, and ready-to-call `_meta.next_commands` chains — on success **and**
+- **12 MCP tools** with token-efficient `response_mode` shaping, typed
+  `outputSchema`, plain-English headlines, and ready-to-call `_meta.next_commands`
+  chains (one per resolved entity) — on success **and**
   error envelopes, so recovery is deterministic.
 - **Validated enum filters** — `find_curations` rejects out-of-vocabulary
   `classification`/`submitter`/`moi` with `invalid_input` and the accepted set
@@ -138,8 +140,8 @@ Or run stdio from a checkout with `uv` (no install step):
 | `get_gencc_diagnostics` | Build provenance + row/gene/disease/submitter counts |
 | `search_genes` | Resolve symbol / HGNC id / partial text to genes (FTS) |
 | `search_diseases` | Resolve title / MONDO / OMIM id to diseases (FTS) |
-| `get_gene_curations` | All gene-disease assertions for a gene, with consensus + conflict |
-| `get_disease_curations` | All genes asserted for a disease, with consensus |
+| `get_gene_curations` | All gene-disease assertions for a gene, with strongest classification + conflict |
+| `get_disease_curations` | All genes asserted for a disease, with strongest classification + conflict |
 | `get_genes_curations` | Batch `get_gene_curations`: up to 20 genes in one call (misses in `unresolved`) |
 | `get_diseases_curations` | Batch `get_disease_curations`: up to 20 diseases in one call (misses in `unresolved`) |
 | `get_gene_disease_assertion` | One pair: per-submitter classifications, MOI, PMIDs, URLs + conflict analysis |
