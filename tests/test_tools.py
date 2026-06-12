@@ -251,6 +251,36 @@ class TestEvalHardening:
         assert "recommended_citation" in meta
         assert "citation_short" not in meta
 
+    async def test_assertion_minimal_omits_submitters(self, mcp_client) -> None:
+        result = await mcp_client.call_tool(
+            "get_gene_disease_assertion",
+            {"gene": "GLA", "disease": "MONDO:0010526", "response_mode": "minimal"},
+        )
+        a = result.structured_content["assertion"]
+        assert "submitters" not in a
+        assert "submitter_titles" not in a  # that's a compact-only field
+        assert a["strongest_classification"]
+        assert "has_conflict" in a
+
+    async def test_assertion_mode_size_ladder(self, mcp_client) -> None:
+        import json
+
+        async def assertion(mode: str) -> dict:
+            r = await mcp_client.call_tool(
+                "get_gene_disease_assertion",
+                {"gene": "GLA", "disease": "MONDO:0010526", "response_mode": mode},
+            )
+            return r.structured_content["assertion"]
+
+        a_min = await assertion("minimal")
+        a_com = await assertion("compact")
+        a_std = await assertion("standard")
+        a_full = await assertion("full")
+        # minimal keys are a strict subset of compact; size grows monotonically.
+        assert set(a_min) < set(a_com)
+        sizes = [len(json.dumps(a)) for a in (a_min, a_com, a_std, a_full)]
+        assert sizes == sorted(sizes) and len(set(sizes)) == 4  # strictly increasing
+
 
 class TestBatchTools:
     async def test_genes_curations_multi(self, mcp_client) -> None:

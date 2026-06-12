@@ -155,11 +155,13 @@ class TestGetGeneDiseaseAssertion:
         assert len(out["submissions"]) >= 1
         assert "submitters" in out["assertion"]
 
-    def test_minimal_mode_upgrades_to_standard(self, service: GenCCService) -> None:
-        # minimal -> shaping uses "standard" so submitters appear.
+    def test_minimal_mode_is_summary_only(self, service: GenCCService) -> None:
+        # minimal -> summary only: no per-submitter array, no raw submissions (D1).
         out = service.get_gene_disease_assertion("SKI", "MONDO:0008426", response_mode="minimal")
-        assert "submitters" in out["assertion"]
+        assert "submitters" not in out["assertion"]
+        assert "submitter_titles" not in out["assertion"]  # compact-only
         assert "submissions" not in out
+        assert out["assertion"]["strongest_classification"]
 
     def test_gene_not_found(self, service: GenCCService) -> None:
         with pytest.raises(NotFoundError):

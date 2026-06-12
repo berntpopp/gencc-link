@@ -345,9 +345,7 @@ class GenCCService:
                 f"{disease_summary.disease_curie}."
             )
         payload: dict[str, Any] = {
-            "assertion": shaping.assertion_dict(
-                assertion, "standard" if mode == "minimal" else mode
-            ),
+            "assertion": shaping.assertion_dict(assertion, mode),
             "headline": shaping.assertion_headline(assertion),
         }
         if mode == "full":
