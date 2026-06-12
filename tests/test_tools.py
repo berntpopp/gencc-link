@@ -228,10 +228,10 @@ class TestBatchTools:
         data = result.structured_content
         assert data["success"] is True
         assert data["unresolved"][0]["input"] == "NOTAGENE"
-        assert data["_meta"]["next_commands"][0] == {
-            "tool": "search_genes",
-            "arguments": {"query": "NOTAGENE"},
-        }
+        cmds = data["_meta"]["next_commands"]
+        # resolved gene drills down; the unresolved input is still offered (as an addition)
+        assert any(c["tool"] == "get_gene_disease_assertion" for c in cmds)
+        assert {"tool": "search_genes", "arguments": {"query": "NOTAGENE"}} in cmds
 
     async def test_genes_curations_over_cap_invalid(self, mcp_client) -> None:
         result = await mcp_client.call_tool(

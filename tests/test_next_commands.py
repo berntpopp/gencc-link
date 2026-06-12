@@ -71,6 +71,54 @@ class TestAfterAssertion:
             assert set(entry.keys()) == {"tool", "arguments"}
 
 
+class TestFanOut:
+    def test_after_search_genes_fans_out_capped(self) -> None:
+        curies = [f"HGNC:{i}" for i in range(8)]
+        cmds = nc.after_search_genes(curies, "x")
+        assert [c["tool"] for c in cmds] == ["get_gene_curations"] * nc._MAX_NEXT_COMMANDS
+        assert cmds[0]["arguments"]["gene"] == "HGNC:0"
+
+    def test_after_search_diseases_fans_out_capped(self) -> None:
+        curies = [f"MONDO:{i}" for i in range(8)]
+        cmds = nc.after_search_diseases(curies, "x")
+        assert [c["tool"] for c in cmds] == ["get_disease_curations"] * nc._MAX_NEXT_COMMANDS
+
+    def test_after_genes_curations_drilldown_plus_unresolved(self) -> None:
+        payload = {
+            "results": [
+                {"gene": {"gene_curie": "HGNC:1"}, "diseases": [{"disease_curie": "MONDO:1"}]},
+                {"gene": {"gene_curie": "HGNC:2"}, "diseases": [{"disease_curie": "MONDO:2"}]},
+            ],
+            "unresolved": [{"input": "NOTAGENE", "reason": "not_found"}],
+        }
+        cmds = nc.after_genes_curations(payload)
+        tools = [c["tool"] for c in cmds]
+        assert tools.count("get_gene_disease_assertion") == 2
+        assert {"tool": "search_genes", "arguments": {"query": "NOTAGENE"}} in cmds
+        assert len(cmds) <= nc._MAX_NEXT_COMMANDS
+
+    def test_after_diseases_curations_drilldown_plus_unresolved(self) -> None:
+        payload = {
+            "results": [
+                {"disease": {"disease_curie": "MONDO:1"}, "genes": [{"gene_curie": "HGNC:1"}]},
+            ],
+            "unresolved": [{"input": "NODISEASE", "reason": "not_found"}],
+        }
+        cmds = nc.after_diseases_curations(payload)
+        assert any(c["tool"] == "get_gene_disease_assertion" for c in cmds)
+        assert {"tool": "search_diseases", "arguments": {"query": "NODISEASE"}} in cmds
+
+    def test_after_genes_curations_no_unresolved_uses_full_cap(self) -> None:
+        payload = {
+            "results": [
+                {"gene": {"gene_curie": f"HGNC:{i}"}, "diseases": [{"disease_curie": f"MONDO:{i}"}]}
+                for i in range(8)
+            ]
+        }
+        cmds = nc.after_genes_curations(payload)
+        assert len(cmds) == nc._MAX_NEXT_COMMANDS
+
+
 class TestRecoveryCommands:
     def test_not_found_gene_curations(self) -> None:
         out = nc.recovery_commands("get_gene_curations", "not_found", {"gene": "ZZZ"}, None)

@@ -5,13 +5,16 @@ from __future__ import annotations
 from typing import Any
 
 
+_MAX_NEXT_COMMANDS = 5
+
+
 def cmd(tool: str, **arguments: Any) -> dict[str, Any]:
     """One ready-to-call next step."""
     return {"tool": tool, "arguments": arguments}
 
 
 def after_search_genes(gene_curies: list[str], query: str = "") -> list[dict[str, Any]]:
-    """After resolving genes: pull the gene's curations, or cross over to disease search.
+    """After resolving genes: pull each gene's curations (capped), or cross to disease search.
 
     On zero hits the original ``query`` is propagated (a gene miss is often a
     disease term); an empty query yields no suggestion rather than a guaranteed
@@ -19,14 +22,14 @@ def after_search_genes(gene_curies: list[str], query: str = "") -> list[dict[str
     """
     if not gene_curies:
         return [cmd("search_diseases", query=query)] if query else []
-    return [cmd("get_gene_curations", gene=gene_curies[0])]
+    return [cmd("get_gene_curations", gene=c) for c in gene_curies[:_MAX_NEXT_COMMANDS]]
 
 
 def after_search_diseases(disease_curies: list[str], query: str = "") -> list[dict[str, Any]]:
-    """After resolving diseases: pull the disease's curations, or cross over to gene search."""
+    """After resolving diseases: pull each disease's curations (capped), or cross to gene search."""
     if not disease_curies:
         return [cmd("search_genes", query=query)] if query else []
-    return [cmd("get_disease_curations", disease=disease_curies[0])]
+    return [cmd("get_disease_curations", disease=c) for c in disease_curies[:_MAX_NEXT_COMMANDS]]
 
 
 def after_gene_curations(gene: str, disease_curies: list[str]) -> list[dict[str, Any]]:
@@ -44,43 +47,53 @@ def after_disease_curations(disease: str, gene_curies: list[str]) -> list[dict[s
 
 
 def after_genes_curations(payload: dict[str, Any]) -> list[dict[str, Any]]:
-    """After a batch of genes: retry the first miss, else drill into the first hit."""
+    """Drill into each resolved gene's top disease (capped); append unresolved recovery.
+
+    Resolved follow-ups come first; the unresolved-recovery hint is an addition,
+    not the only entry (a slot is reserved for it so it is never crowded out).
+    """
     unresolved = payload.get("unresolved") or []
-    if unresolved:
-        return [cmd("search_genes", query=unresolved[0]["input"])]
-    results = payload.get("results") or []
-    if results:
-        top = results[0]
-        diseases = top.get("diseases") or []
-        if diseases:
-            return [
+    cap = _MAX_NEXT_COMMANDS - 1 if unresolved else _MAX_NEXT_COMMANDS
+    nexts: list[dict[str, Any]] = []
+    for block in payload.get("results") or []:
+        gene = block.get("gene") or {}
+        diseases = block.get("diseases") or []
+        if gene.get("gene_curie") and diseases:
+            nexts.append(
                 cmd(
                     "get_gene_disease_assertion",
-                    gene=top["gene"]["gene_curie"],
+                    gene=gene["gene_curie"],
                     disease=diseases[0]["disease_curie"],
                 )
-            ]
-    return []
+            )
+        if len(nexts) >= cap:
+            break
+    if unresolved:
+        nexts.append(cmd("search_genes", query=unresolved[0]["input"]))
+    return nexts
 
 
 def after_diseases_curations(payload: dict[str, Any]) -> list[dict[str, Any]]:
-    """After a batch of diseases: retry the first miss, else drill into the first hit."""
+    """Drill into each resolved disease's top gene (capped); append unresolved recovery."""
     unresolved = payload.get("unresolved") or []
-    if unresolved:
-        return [cmd("search_diseases", query=unresolved[0]["input"])]
-    results = payload.get("results") or []
-    if results:
-        top = results[0]
-        genes = top.get("genes") or []
-        if genes:
-            return [
+    cap = _MAX_NEXT_COMMANDS - 1 if unresolved else _MAX_NEXT_COMMANDS
+    nexts: list[dict[str, Any]] = []
+    for block in payload.get("results") or []:
+        disease = block.get("disease") or {}
+        genes = block.get("genes") or []
+        if disease.get("disease_curie") and genes:
+            nexts.append(
                 cmd(
                     "get_gene_disease_assertion",
                     gene=genes[0]["gene_curie"],
-                    disease=top["disease"]["disease_curie"],
+                    disease=disease["disease_curie"],
                 )
-            ]
-    return []
+            )
+        if len(nexts) >= cap:
+            break
+    if unresolved:
+        nexts.append(cmd("search_diseases", query=unresolved[0]["input"]))
+    return nexts
 
 
 def after_assertion(gene: str, disease: str) -> list[dict[str, Any]]:
