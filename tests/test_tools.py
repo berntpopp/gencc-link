@@ -93,6 +93,15 @@ async def test_find_curations_success(mcp_client) -> None:
     assert data["total"] == 2
 
 
+async def test_find_curations_ids_only(mcp_client) -> None:
+    result = await mcp_client.call_tool(
+        "find_curations", {"classification": ["Definitive"], "ids_only": True}
+    )
+    data = result.structured_content
+    assert data["success"] is True
+    assert all(set(r.keys()) == {"gene_curie", "disease_curie"} for r in data["results"])
+
+
 async def test_list_submitters_success(mcp_client) -> None:
     result = await mcp_client.call_tool("list_submitters", {})
     data = result.structured_content

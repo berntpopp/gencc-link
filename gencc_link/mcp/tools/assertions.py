@@ -76,7 +76,9 @@ def register_assertion_tools(mcp: FastMCP) -> None:
             "level (any submitter), not the consensus -- each row's `matched` "
             "field names the triggering submission. Filter values are validated "
             "(case-insensitive); out-of-vocabulary values return invalid_input "
-            "with the accepted set (see get_server_capabilities / list_submitters)."
+            "with the accepted set (see get_server_capabilities / list_submitters). "
+            "Pass ids_only=true to return only {gene_curie, disease_curie} pairs for "
+            "cheap paging, then fetch detail for the pairs you want."
         ),
     )
     async def find_curations(
@@ -87,6 +89,7 @@ def register_assertion_tools(mcp: FastMCP) -> None:
         moi: str | None = None,
         has_conflict: bool | None = None,
         response_mode: _MODE = "compact",
+        ids_only: bool = False,
         limit: int = 50,
         offset: int = 0,
     ) -> dict[str, Any]:
@@ -99,6 +102,7 @@ def register_assertion_tools(mcp: FastMCP) -> None:
                 moi=moi,
                 has_conflict=has_conflict,
                 response_mode=response_mode,
+                ids_only=ids_only,
                 limit=limit,
                 offset=offset,
             )

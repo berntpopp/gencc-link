@@ -369,6 +369,7 @@ class GenCCService:
         moi: str | None = None,
         has_conflict: bool | None = None,
         response_mode: str = "compact",
+        ids_only: bool = False,
         limit: int = 50,
         offset: int = 0,
     ) -> dict[str, Any]:
@@ -411,11 +412,14 @@ class GenCCService:
             offset=offset,
         )
         rows: list[dict[str, Any]] = []
-        for a in results:
-            row = shaping.assertion_dict(a, mode)
-            if matched and mode != "minimal":
-                row["matched"] = matched.get((a.gene_curie, a.disease_curie), [])
-            rows.append(row)
+        if ids_only:
+            rows = [{"gene_curie": a.gene_curie, "disease_curie": a.disease_curie} for a in results]
+        else:
+            for a in results:
+                row = shaping.assertion_dict(a, mode)
+                if matched and mode != "minimal":
+                    row["matched"] = matched.get((a.gene_curie, a.disease_curie), [])
+                rows.append(row)
         payload: dict[str, Any] = {
             "count": len(results),
             "total": total,

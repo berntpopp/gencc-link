@@ -170,6 +170,14 @@ class TestFindCurations:
         with pytest.raises(InvalidInputError):
             service.find_curations()
 
+    def test_ids_only_returns_just_pairs(self, service: GenCCService) -> None:
+        full = service.find_curations(classification=["Definitive"])
+        ids = service.find_curations(classification=["Definitive"], ids_only=True)
+        assert ids["total"] == full["total"]
+        assert ids["results"], "expected matches"
+        for row in ids["results"]:
+            assert set(row.keys()) == {"gene_curie", "disease_curie"}
+
     def test_unknown_gene_filter_empty(self, service: GenCCService) -> None:
         out = service.find_curations(gene="NOTAGENE")
         assert out["total"] == 0

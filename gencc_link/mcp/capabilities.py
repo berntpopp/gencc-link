@@ -86,6 +86,8 @@ def _static_surface() -> dict[str, Any]:
             "moi": "mode-of-inheritance title; data-derived and validated "
             "(see inheritance_modes). Out-of-vocabulary values return invalid_input.",
             "response_mode": "minimal | compact | standard | full (default compact)",
+            "ids_only": "find_curations only: return just {gene_curie, disease_curie} "
+            "pairs (no per-row detail) for cheap paging",
         },
         "error_codes": [
             "invalid_input",
