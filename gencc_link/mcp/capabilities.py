@@ -32,6 +32,8 @@ TOOLS: tuple[str, ...] = (
     "search_diseases",
     "get_gene_curations",
     "get_disease_curations",
+    "get_genes_curations",
+    "get_diseases_curations",
     "get_gene_disease_assertion",
     "find_curations",
     "list_submitters",
@@ -70,10 +72,14 @@ def _static_surface() -> dict[str, Any]:
             "disease text -> search_diseases -> get_disease_curations",
             "Definitive AD genes from ClinGen -> find_curations(classification=['Definitive'], "
             "moi='Autosomal dominant', submitter=['ClinGen'])",
+            "multiple genes at once -> get_genes_curations(genes=['BRCA2','NAA10']); "
+            "multiple diseases -> get_diseases_curations(diseases=[...])",
         ],
         "parameter_conventions": {
             "gene": "HGNC CURIE (HGNC:10896) or approved symbol (SKI); resolved exactly",
             "disease": "MONDO CURIE (MONDO:0008426), OMIM CURIE, or harmonized title",
+            "genes": "list of gene symbols or HGNC ids (max 20); batch form of `gene`",
+            "diseases": "list of disease ids or titles (max 20); batch form of `disease`",
             "classification": "one or more of the classification titles (see `classifications`)",
             "submitter": "submitter title (e.g. ClinGen) or GenCC submitter CURIE; "
             "validated against the live roster (see list_submitters)",
@@ -93,6 +99,8 @@ def _static_surface() -> dict[str, Any]:
         "token_cost_hints": {
             "search_genes": "~1-3kB",
             "get_gene_curations": "compact ~2-5kB; full larger with per-submitter rows",
+            "get_genes_curations": "~2-5kB per resolved gene (compact); scales with the list",
+            "get_diseases_curations": "~2-5kB per resolved disease (compact); scales with the list",
             "get_gene_disease_assertion": "standard ~2-4kB; full adds raw submissions",
             "get_server_capabilities": "<4kB",
         },

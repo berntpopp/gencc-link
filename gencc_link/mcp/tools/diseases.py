@@ -8,7 +8,11 @@ from pydantic import Field
 
 from gencc_link.mcp.annotations import READ_ONLY_OPEN_WORLD
 from gencc_link.mcp.envelope import McpErrorContext, run_mcp_tool
-from gencc_link.mcp.next_commands import after_disease_curations, after_search_diseases
+from gencc_link.mcp.next_commands import (
+    after_disease_curations,
+    after_diseases_curations,
+    after_search_diseases,
+)
 from gencc_link.mcp.service_adapters import get_gencc_service
 from gencc_link.models.enums import ResponseMode
 
@@ -87,5 +91,38 @@ def register_disease_tools(mcp: FastMCP) -> None:
             "get_disease_curations",
             call,
             context=McpErrorContext("get_disease_curations", arguments={"disease": disease}),
+            response_mode=response_mode,
+        )
+
+    @mcp.tool(
+        name="get_diseases_curations",
+        title="Get Curations for Many Diseases",
+        annotations=READ_ONLY_OPEN_WORLD,
+        tags={"disease", "batch"},
+        description=(
+            "Batch form of get_disease_curations: pass a list of disease ids or "
+            "titles (max 20) and get each disease's gene assertions in one call. "
+            "Unresolvable inputs come back in `unresolved` and the call still "
+            "succeeds. Each result block mirrors get_disease_curations (disease "
+            "summary + consensus genes). Use limit_per_disease to cap genes per "
+            "disease and response_mode to widen detail."
+        ),
+    )
+    async def get_diseases_curations(
+        diseases: list[str],
+        response_mode: _MODE = "compact",
+        limit_per_disease: int = 50,
+    ) -> dict[str, Any]:
+        async def call() -> dict[str, Any]:
+            payload = get_gencc_service().get_diseases_curations(
+                diseases, response_mode=response_mode, limit_per_disease=limit_per_disease
+            )
+            payload["_meta"] = {"next_commands": after_diseases_curations(payload)}
+            return payload
+
+        return await run_mcp_tool(
+            "get_diseases_curations",
+            call,
+            context=McpErrorContext("get_diseases_curations", arguments={"diseases": diseases}),
             response_mode=response_mode,
         )

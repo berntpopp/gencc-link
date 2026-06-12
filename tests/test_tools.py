@@ -13,6 +13,8 @@ EXPECTED_TOOLS = {
     "search_diseases",
     "get_gene_curations",
     "get_disease_curations",
+    "get_genes_curations",
+    "get_diseases_curations",
     "get_gene_disease_assertion",
     "find_curations",
     "list_submitters",
@@ -110,7 +112,7 @@ async def test_capabilities_tool(mcp_client) -> None:
     result = await mcp_client.call_tool("get_server_capabilities", {})
     data = result.structured_content
     assert data["success"] is True
-    assert len(data["tools"]) == 10
+    assert len(data["tools"]) == 12
     assert data["data"]["status"] == "ready"
 
 
@@ -193,6 +195,42 @@ class TestEvalHardening:
         )
         data = result.structured_content
         assert data["_meta"]["citation_ref"] == "gencc://citation"
+
+
+class TestBatchTools:
+    async def test_genes_curations_multi(self, mcp_client) -> None:
+        result = await mcp_client.call_tool("get_genes_curations", {"genes": ["SKI", "GLA"]})
+        data = result.structured_content
+        assert data["success"] is True
+        assert data["count"] == 2
+        assert data["_meta"]["citation_ref"] == "gencc://citation"
+        assert data["_meta"]["next_commands"]
+
+    async def test_genes_curations_partial_next_command(self, mcp_client) -> None:
+        result = await mcp_client.call_tool("get_genes_curations", {"genes": ["SKI", "NOTAGENE"]})
+        data = result.structured_content
+        assert data["success"] is True
+        assert data["unresolved"][0]["input"] == "NOTAGENE"
+        assert data["_meta"]["next_commands"][0] == {
+            "tool": "search_genes",
+            "arguments": {"query": "NOTAGENE"},
+        }
+
+    async def test_genes_curations_over_cap_invalid(self, mcp_client) -> None:
+        result = await mcp_client.call_tool(
+            "get_genes_curations", {"genes": [f"G{i}" for i in range(21)]}
+        )
+        data = result.structured_content
+        assert data["success"] is False
+        assert data["error_code"] == "invalid_input"
+
+    async def test_diseases_curations_multi(self, mcp_client) -> None:
+        result = await mcp_client.call_tool(
+            "get_diseases_curations", {"diseases": ["MONDO:0008426", "MONDO:0010526"]}
+        )
+        data = result.structured_content
+        assert data["success"] is True
+        assert data["count"] >= 1
 
 
 class TestDiagnosticsQuota:
