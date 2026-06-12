@@ -300,3 +300,46 @@ class TestRowTrim:
         out = service.get_disease_curations("MONDO:0008426", response_mode="compact")
         assert out["disease"]["disease_curie"]
         assert all("disease_curie" not in g for g in out["genes"])
+
+
+class TestBatchCurations:
+    def test_genes_curations_two_hits(self, service: GenCCService) -> None:
+        out = service.get_genes_curations(["SKI", "GLA"])
+        assert out["requested"] == 2
+        assert out["count"] == 2
+        symbols = {b["gene"]["gene_symbol"] for b in out["results"]}
+        assert {"SKI", "GLA"} <= symbols
+        assert "unresolved" not in out
+
+    def test_genes_curations_dedupes_preserving_order(self, service: GenCCService) -> None:
+        out = service.get_genes_curations(["SKI", "ski", "SKI"])
+        assert out["requested"] == 1
+        assert out["count"] == 1
+
+    def test_genes_curations_partial_unresolved(self, service: GenCCService) -> None:
+        out = service.get_genes_curations(["SKI", "NOTAGENE"])
+        assert out["count"] == 1
+        assert out["unresolved"] == [{"input": "NOTAGENE", "reason": "not_found"}]
+
+    def test_genes_curations_all_unresolved_still_succeeds(self, service: GenCCService) -> None:
+        out = service.get_genes_curations(["NOPE1", "NOPE2"])
+        assert out["count"] == 0
+        assert len(out["unresolved"]) == 2
+
+    def test_genes_curations_empty_raises(self, service: GenCCService) -> None:
+        with pytest.raises(InvalidInputError):
+            service.get_genes_curations([])
+
+    def test_genes_curations_over_cap_raises(self, service: GenCCService) -> None:
+        with pytest.raises(InvalidInputError):
+            service.get_genes_curations([f"G{i}" for i in range(21)])
+
+    def test_genes_curations_limit_per_gene(self, service: GenCCService) -> None:
+        out = service.get_genes_curations(["SKI"], limit_per_gene=1)
+        assert out["results"][0]["count"] <= 1
+
+    def test_diseases_curations_two_hits(self, service: GenCCService) -> None:
+        out = service.get_diseases_curations(["MONDO:0008426", "MONDO:0010526"])
+        assert out["requested"] == 2
+        assert out["count"] >= 1
+        assert all("genes" in b for b in out["results"])
