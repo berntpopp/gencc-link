@@ -114,6 +114,9 @@ def _static_surface() -> dict[str, Any]:
             "(standard/full); minimal/compact emit _meta.citation_ref instead",
             "citation_ref": "_meta.citation_ref: 'gencc://citation' in minimal/compact; "
             "dereference once and cache",
+            "citation_short": "_meta.citation_short: a one-line attribution stub "
+            "(minimal/compact) so a sourced answer can be cited without a round-trip; "
+            "the full verbatim citation stays at gencc://citation and in standard/full.",
             "request_id": "_meta.request_id + _meta.elapsed_ms: per-call trace id and "
             "server-side timing on every envelope",
             "matched": "find_curations: the submission(s) that satisfied a submission-level "

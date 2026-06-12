@@ -222,6 +222,22 @@ class TestEvalHardening:
         subs = data["assertion"]["submitters"]
         assert any("submitted_as_date_iso" in s for s in subs)
 
+    async def test_compact_has_citation_short(self, mcp_client) -> None:
+        result = await mcp_client.call_tool(
+            "get_gene_curations", {"gene": "SKI", "response_mode": "compact"}
+        )
+        meta = result.structured_content["_meta"]
+        assert meta["citation_short"] == "GenCC (thegencc.org), CC0-1.0"
+        assert meta["citation_ref"] == "gencc://citation"
+
+    async def test_full_uses_full_citation_not_short(self, mcp_client) -> None:
+        result = await mcp_client.call_tool(
+            "get_gene_curations", {"gene": "SKI", "response_mode": "full"}
+        )
+        meta = result.structured_content["_meta"]
+        assert "recommended_citation" in meta
+        assert "citation_short" not in meta
+
 
 class TestBatchTools:
     async def test_genes_curations_multi(self, mcp_client) -> None:

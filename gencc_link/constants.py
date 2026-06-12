@@ -122,6 +122,11 @@ RESEARCH_USE_NOTICE = (
 # GenCC data is CC0; attribution to GenCC and contributing sources is requested.
 DATA_LICENSE = "CC0-1.0"
 
+# Short attribution stub for compact/minimal envelopes; the full verbatim citation
+# stays behind gencc://citation (and in standard/full). Not a substitute for
+# RECOMMENDED_CITATION.
+CITATION_SHORT = "GenCC (thegencc.org), CC0-1.0"
+
 RECOMMENDED_CITATION = (
     "DiStefano MT, Goehringer S, Babb L, et al. The Gene Curation Coalition: A "
     "global effort to harmonize gene-disease evidence resources. Genet Med. "
