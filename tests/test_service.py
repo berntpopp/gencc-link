@@ -15,16 +15,22 @@ class _BothMatchRepo:
     def resolve_gene(self, identifier: str) -> GeneSummary | None:
         if identifier.upper() == "AMBIG":
             return GeneSummary(
-                gene_curie="HGNC:9", gene_symbol="AMBIG",
-                n_submissions=1, n_diseases=1, n_submitters=1,
+                gene_curie="HGNC:9",
+                gene_symbol="AMBIG",
+                n_submissions=1,
+                n_diseases=1,
+                n_submitters=1,
             )
         return None
 
     def resolve_disease(self, identifier: str) -> DiseaseSummary | None:
         if identifier.upper() == "AMBIG":
             return DiseaseSummary(
-                disease_curie="MONDO:9", disease_title="AMBIG",
-                n_submissions=1, n_genes=1, n_submitters=1,
+                disease_curie="MONDO:9",
+                disease_title="AMBIG",
+                n_submissions=1,
+                n_genes=1,
+                n_submitters=1,
             )
         return None
 
