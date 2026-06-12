@@ -119,6 +119,10 @@ def _static_surface() -> dict[str, Any]:
             "matched": "find_curations: the submission(s) that satisfied a submission-level "
             "classification/submitter/moi filter (compact/standard/full)",
             "has_conflict": "true when supporting and against assertions coexist for a pair",
+            "strongest_classification": "gene-disease pairs: the highest-rank "
+            "classification asserted by any submitter (e.g. Definitive). NOT a "
+            "consensus/agreement measure -- a pair can be Definitive yet conflicted; "
+            "read has_conflict and min_classification for the spread.",
             "capabilities_version": "16-char content hash of the static surface; also echoed "
             "by get_gencc_diagnostics for a near-zero-token drift probe (re-fetch this "
             "document only when it changes)",

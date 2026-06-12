@@ -72,8 +72,13 @@ class GeneDiseaseAssertion(BaseModel):
     disease_title: str | None = None
     n_submissions: int = 0
     n_submitters: int = 0
-    consensus_classification: str | None = Field(
-        default=None, description="Strongest classification asserted by any submitter"
+    strongest_classification: str | None = Field(
+        default=None,
+        description=(
+            "Strongest (highest-rank) classification asserted by any submitter; "
+            "NOT an agreement measure -- read has_conflict and min_classification "
+            "for disagreement and the classification range."
+        ),
     )
     consensus_rank: int | None = None
     min_classification: str | None = None

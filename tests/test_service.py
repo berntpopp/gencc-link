@@ -105,7 +105,7 @@ class TestGetGeneDiseaseAssertion:
     def test_gla_conflict(self, service: GenCCService) -> None:
         out = service.get_gene_disease_assertion("GLA", "MONDO:0010526")
         assert out["assertion"]["has_conflict"] is True
-        assert out["assertion"]["consensus_classification"] == "Definitive"
+        assert out["assertion"]["strongest_classification"] == "Definitive"
         assert "CONFLICT" in out["headline"]
 
     def test_full_mode_adds_submissions(self, service: GenCCService) -> None:

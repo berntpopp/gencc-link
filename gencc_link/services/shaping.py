@@ -42,13 +42,13 @@ def disease_headline(disease: DiseaseSummary) -> str:
 def assertion_headline(a: GeneDiseaseAssertion) -> str:
     """One-line summary for a gene-disease assertion."""
     label = a.disease_title or a.disease_curie
-    consensus = a.consensus_classification or "no classification"
+    strongest = a.strongest_classification or "no classification"
     conflict = " — CONFLICT" if a.has_conflict else ""
     spread = ""
-    if a.min_classification and a.min_classification != a.consensus_classification:
-        spread = f" (range {a.consensus_classification}..{a.min_classification})"
+    if a.min_classification and a.min_classification != a.strongest_classification:
+        spread = f" (range {a.strongest_classification}..{a.min_classification})"
     return (
-        f"{a.gene_symbol} - {label}: {consensus} from {a.n_submitters} "
+        f"{a.gene_symbol} - {label}: {strongest} from {a.n_submitters} "
         f"submitter(s){spread}{conflict}."
     )
 
@@ -93,7 +93,7 @@ def assertion_dict(
     if not (omit_disease and trim):
         out["disease_curie"] = a.disease_curie
         out["disease_title"] = a.disease_title
-    out["consensus_classification"] = a.consensus_classification
+    out["strongest_classification"] = a.strongest_classification
     out["n_submitters"] = a.n_submitters
     out["n_submissions"] = a.n_submissions
     out["has_conflict"] = a.has_conflict

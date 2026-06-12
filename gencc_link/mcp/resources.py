@@ -15,7 +15,8 @@ GENCC_SERVER_INSTRUCTIONS = (
     "organizations (ClinGen, Genomics England PanelApp, Orphanet, Ambry, Invitae, "
     "Illumina, and more). Canonical workflow: search_genes / search_diseases to "
     "resolve free text to a HGNC or MONDO id -> get_gene_curations (all diseases "
-    "for a gene, with consensus) or get_disease_curations (all genes for a "
+    "for a gene, with the strongest classification and a conflict flag) or "
+    "get_disease_curations (all genes for a "
     "disease) -> get_gene_disease_assertion for the per-submitter breakdown with "
     "classifications, modes of inheritance, PMIDs, and evidence URLs. For several "
     "genes or diseases at once use get_genes_curations / get_diseases_curations "
@@ -23,7 +24,7 @@ GENCC_SERVER_INSTRUCTIONS = (
     "find_curations to filter by classification, submitter, or mode of "
     "inheritance (e.g. Definitive autosomal-dominant genes from ClinGen; "
     "ids_only=true returns just id pairs for cheap paging). Each "
-    "gene-disease pair carries a consensus classification and a has_conflict flag "
+    "gene-disease pair carries a strongest_classification and a has_conflict flag "
     "(supporting vs. refuting submitters). Results are JSON with a `success` "
     "flag, a plain-English `headline`, `_meta.next_commands`, and "
     "`recommended_citation`. response_mode (minimal|compact|standard|full) trims "
@@ -48,7 +49,8 @@ GENCC_USAGE_NOTES = (
 GENCC_REFERENCE_NOTES = (
     "Classification ranks (strong -> weak): "
     + " > ".join(CLASSIFICATION_ORDER)
-    + ". consensus_classification is the strongest assertion across submitters; "
+    + ". strongest_classification is the highest-rank assertion across submitters "
+    "(not an agreement measure); "
     "min_classification is the weakest. has_conflict is true when a supporting "
     "classification (Definitive/Strong/Moderate) and an against classification "
     "(Disputed/Refuted/No Known Disease Relationship) coexist for one pair. "

@@ -25,7 +25,7 @@ def _assertion(
         disease_title="Fabry disease",
         n_submissions=2,
         n_submitters=2,
-        consensus_classification="Definitive",
+        strongest_classification="Definitive",
         consensus_rank=6,
         min_classification=min_class,
         has_conflict=has_conflict,
@@ -63,7 +63,7 @@ class TestAssertionDict:
         assert "min_classification" not in out
         assert "classification_titles" not in out
         assert "submitters" not in out
-        assert out["consensus_classification"] == "Definitive"
+        assert out["strongest_classification"] == "Definitive"
         assert out["has_conflict"] is False
 
     def test_compact_has_submitter_titles_not_submitters(self) -> None:
@@ -280,7 +280,7 @@ class TestOmitParentId:
     def test_omit_gene_minimal(self) -> None:
         out = shaping.assertion_dict(_assertion(), "minimal", omit_gene=True)
         assert "gene_curie" not in out
-        assert out["consensus_classification"]
+        assert out["strongest_classification"]
 
     def test_omit_ignored_in_standard(self) -> None:
         out = shaping.assertion_dict(_assertion(), "standard", omit_gene=True)
