@@ -282,6 +282,26 @@ class TestEvalHardening:
         assert sizes == sorted(sizes) and len(set(sizes)) == 4  # strictly increasing
 
 
+    async def test_empty_and_overcap_errors_are_chainable(self, mcp_client) -> None:
+        # empty query
+        r1 = await mcp_client.call_tool("search_genes", {"query": "   "})
+        d1 = r1.structured_content
+        assert d1["success"] is False and d1["error_code"] == "invalid_input"
+        assert d1["_meta"]["next_commands"], "empty-query error must be chainable"
+        # >20 batch
+        r2 = await mcp_client.call_tool(
+            "get_genes_curations", {"genes": [f"G{i}" for i in range(21)]}
+        )
+        d2 = r2.structured_content
+        assert d2["success"] is False and d2["error_code"] == "invalid_input"
+        assert d2["_meta"]["next_commands"], ">20 batch error must be chainable"
+        # no-filter find_curations
+        r3 = await mcp_client.call_tool("find_curations", {})
+        d3 = r3.structured_content
+        assert d3["success"] is False
+        assert d3["_meta"]["next_commands"], "no-filter find_curations must be chainable"
+
+
 class TestBatchTools:
     async def test_genes_curations_multi(self, mcp_client) -> None:
         result = await mcp_client.call_tool("get_genes_curations", {"genes": ["SKI", "GLA"]})
