@@ -5,6 +5,41 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] - 2026-06-12
+
+Consumer-uplift release: resolves every finding in `docs/MCP-ASSESSMENT.md`
+(scored 9/10) — see `docs/superpowers/specs/2026-06-12-mcp-consumer-uplift-9.5-design.md`.
+
+### Fixed
+
+- `get_gene_disease_assertion` `minimal` mode is now summary-only; verbosity is
+  strictly `minimal <= compact <= standard <= full` (was `compact < minimal ==
+  standard`). (D1)
+- Argument-validation failures (invalid `response_mode`, unknown argument names)
+  now return the structured `invalid_input` envelope with `error_code`,
+  `field_errors`, and `next_commands` instead of a raw Pydantic/JSON-RPC dump,
+  via a new `InputValidationMiddleware`. (D2a)
+- Every `invalid_input` envelope now carries `_meta.next_commands` (empty query,
+  >20 batch, bad offset, no-filter `find_curations`). (D2b)
+- Case-insensitive, multi-suggestion "did you mean" filter hints; `moi="Recessive"`
+  now surfaces `Autosomal recessive` rather than `X-linked recessive`. (D6)
+
+### Added
+
+- `find_curations` opaque, release-bound pagination `cursor` + `truncated.next_cursor`;
+  the page-forward continuation is the first `_meta.next_commands` entry, so large
+  sweeps are autonomous and refresh-safe (a stale cursor is rejected, not silently
+  skipped/duplicated). (D3, D4)
+- `resolve_identifier` accepts `identifier` as an alias for `query`.
+- Capabilities/reference now document `field_errors`, `cursor`/`next_cursor`, the
+  `ambiguous_query` trigger, and the `gencc://research-use` resource. (D5, D6)
+
+### Changed
+
+- Token efficiency: `standard` mode now uses `citation_ref` + `citation_short`
+  (cite-by-ref); the verbatim `recommended_citation` is reserved for `full` mode.
+  No information loss — the full citation stays at `gencc://citation`.
+
 ## [0.2.0] - 2026-06-12
 
 ### Changed

@@ -290,7 +290,6 @@ class TestEvalHardening:
         sizes = [len(json.dumps(a)) for a in (a_min, a_com, a_std, a_full)]
         assert sizes == sorted(sizes) and len(set(sizes)) == 4  # strictly increasing
 
-
     async def test_capabilities_documents_field_errors_and_cursor(self, mcp_client) -> None:
         result = await mcp_client.call_tool("get_server_capabilities", {})
         rf = result.structured_content["response_fields"]

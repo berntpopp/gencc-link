@@ -150,4 +150,18 @@ Representative calls exercised during the pass (inputs → observed outcome):
 | `list_submitters` | — | 18 orgs with submission/gene/disease counts |
 | Resources | `gencc://usage,reference,license,citation` | all resolve; accurate and consistent |
 
+---
+
+## Resolution (v0.3.0, 2026-06-12)
+
+All findings addressed: **D1** (minimal summary-only), **D2a** (validation errors →
+structured `invalid_input` via `InputValidationMiddleware`), **D2b** (`next_commands`
+on every error), **D3/D4** (release-bound opaque cursor + autonomous page-forward),
+**D5** (`field_errors`, `cursor`/`next_cursor` documented), **D6** (`ambiguous_query`
+reachability test + case-insensitive multi-suggestion hints), and the Part-1 citation
+tax (cite-by-ref extended to `standard`). See
+`docs/superpowers/specs/2026-06-12-mcp-consumer-uplift-9.5-design.md`,
+`docs/superpowers/plans/2026-06-12-mcp-consumer-uplift-9.5.md`, and the 0.3.0
+CHANGELOG entry.
+
 *Research use only; not for clinical decision support. GenCC data: CC0-1.0, GenCC (thegencc.org).*

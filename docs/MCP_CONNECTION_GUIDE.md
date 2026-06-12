@@ -140,15 +140,16 @@ database is built (`status: ready`) or needs building (`status: unavailable`).
 | `get_genes_curations` | Batch `get_gene_curations`: up to 20 genes in one call (misses in `unresolved`) |
 | `get_diseases_curations` | Batch `get_disease_curations`: up to 20 diseases in one call (misses in `unresolved`) |
 | `get_gene_disease_assertion` | One pair: per-submitter classifications, MOI, PMIDs, URLs + conflict analysis |
-| `find_curations` | Filter assertions by classification/submitter/MOI/conflict (validated enums; rows carry `matched`; `ids_only` for cheap paging) |
+| `find_curations` | Filter assertions by classification/submitter/MOI/conflict (validated enums; rows carry `matched`; `ids_only` for cheap paging; opaque `cursor` for refresh-safe autonomous page-forward) |
 | `list_submitters` | Submitting organizations + counts |
-| `resolve_identifier` | Map free text to canonical HGNC/MONDO ids |
+| `resolve_identifier` | Map free text to canonical HGNC/MONDO ids (accepts `query` or its alias `identifier`) |
 
 Every response envelope carries `_meta` with `request_id`, `elapsed_ms`,
-`next_commands` (on success **and** error), and either `recommended_citation`
-(`standard`/`full`) or a cacheable `citation_ref` plus a one-line `citation_short`
-attribution stub (`minimal`/`compact`). Every tool also advertises a typed
-`outputSchema`, so structured results can be validated client-side.
+`next_commands` (on success **and** error), and either the full
+`recommended_citation` (`full` mode) or a cacheable `citation_ref` plus a one-line
+`citation_short` attribution stub (`minimal`/`compact`/`standard`). Every tool also
+advertises a typed `outputSchema`, so structured results can be validated
+client-side.
 
 ## Troubleshooting
 
