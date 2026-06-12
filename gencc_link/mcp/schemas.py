@@ -54,6 +54,7 @@ _TRUNCATION = {
         "total": _INT,
         "returned": _INT,
         "next_offset": _INT,
+        "next_cursor": _STR,
         "hint": _STR,
     },
     "additionalProperties": True,
@@ -95,7 +96,12 @@ DISEASE_CURATIONS_SCHEMA = tool_output_schema(
     disease=_OBJ, count=_INT, total=_INT, genes=_OBJ_ARRAY, truncated=_TRUNCATION
 )
 GENES_CURATIONS_SCHEMA = tool_output_schema(
-    requested=_INT, count=_INT, results=_OBJ_ARRAY, unresolved=_OBJ_ARRAY
+    received=_INT,
+    requested=_INT,
+    count=_INT,
+    results=_OBJ_ARRAY,
+    duplicates=_ARRAY,
+    unresolved=_OBJ_ARRAY,
 )
 DISEASES_CURATIONS_SCHEMA = GENES_CURATIONS_SCHEMA
 ASSERTION_SCHEMA = tool_output_schema(assertion=_OBJ, submissions=_OBJ_ARRAY)

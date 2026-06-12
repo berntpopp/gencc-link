@@ -87,14 +87,17 @@ class TestAssertionDict:
         # top-level pmids only present in full.
         assert "pmids" not in out
 
-    def test_full_has_pmids_and_full_submitter_fields(self) -> None:
+    def test_full_has_per_submitter_pmids_but_no_union(self) -> None:
         out = shaping.assertion_dict(_assertion(), "full")
         assert "submitters" in out
-        assert out["pmids"] == ["111", "222"]
+        # The pair-level union pmids is dropped as pure redundancy; per-submitter
+        # pmids remain so attribution is preserved.
+        assert "pmids" not in out
         first = out["submitters"][0]
         assert first["submitter_curie"] == "GENCC:000101"
         assert first["assertion_criteria_url"] == "http://example/criteria"
         assert first["pmids"] == ["111"]
+        assert any(s["pmids"] for s in out["submitters"])
 
 
 class TestSummaryDicts:
@@ -181,10 +184,25 @@ class TestSummaryDicts:
             submitted_run_date="2024-11-01",
         )
         out = shaping.submission_dict(rec)
+        # Raw-extras kept (not represented in submitters[] / the parent).
         assert out["sgc_id"] == "SGC-100001"
         assert out["notes"] == "Some notes."
         assert out["pmids"] == ["22772368"]
         assert out["disease_original_curie"] == "OMIM:182212"
+        assert out["classification_title"] == "Definitive"
+        assert out["version_number"] == 1
+        assert out["submitted_run_date"] == "2024-11-01"
+        # De-duplicated: harmonized fields live in submitters[]; pair-constant
+        # disease identity comes from the parent assertion.
+        for dropped in (
+            "disease_curie",
+            "disease_title",
+            "public_report_url",
+            "assertion_criteria_url",
+            "submitted_as_date",
+            "submitted_as_date_iso",
+        ):
+            assert dropped not in out
 
 
 class TestSubmitterDictDictInput:

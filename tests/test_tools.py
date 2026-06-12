@@ -99,6 +99,23 @@ async def test_get_gene_disease_assertion_gla_conflict(mcp_client) -> None:
     assert "submissions" in data
 
 
+async def test_assertion_full_mode_is_deduplicated(mcp_client) -> None:
+    result = await mcp_client.call_tool(
+        "get_gene_disease_assertion",
+        {"gene": "SKI", "disease": "MONDO:0008426", "response_mode": "full"},
+    )
+    d = result.structured_content
+    assert "pmids" not in d["assertion"]  # no pair-level union
+    assert any(s.get("pmids") for s in d["assertion"]["submitters"])  # attribution kept
+    assert d["submissions"]
+    row = d["submissions"][0]
+    # raw-extras preserved
+    assert "notes" in row and "sgc_id" in row and "version_number" in row
+    # de-duplicated vs submitters[] / parent
+    for dropped in ("disease_curie", "public_report_url", "assertion_criteria_url"):
+        assert dropped not in row
+
+
 async def test_find_curations_success(mcp_client) -> None:
     result = await mcp_client.call_tool("find_curations", {"has_conflict": True})
     data = result.structured_content
@@ -260,6 +277,26 @@ class TestEvalHardening:
         assert meta["citation_short"] == "GenCC (thegencc.org), CC0-1.0"
         assert "recommended_citation" not in meta
 
+    async def test_error_envelope_uses_citation_ref_not_full(self, mcp_client) -> None:
+        result = await mcp_client.call_tool("search_genes", {"query": ""})
+        data = result.structured_content
+        assert data["success"] is False and data["error_code"] == "invalid_input"
+        meta = data["_meta"]
+        assert meta["citation_ref"] == "gencc://citation"
+        assert "recommended_citation" not in meta
+        assert "citation_short" not in meta
+        assert meta["unsafe_for_clinical_use"] is True
+
+    async def test_data_license_only_in_full(self, mcp_client) -> None:
+        compact = await mcp_client.call_tool(
+            "get_gene_curations", {"gene": "SKI", "response_mode": "compact"}
+        )
+        assert "data_license" not in compact.structured_content["_meta"]
+        full = await mcp_client.call_tool(
+            "get_gene_curations", {"gene": "SKI", "response_mode": "full"}
+        )
+        assert full.structured_content["_meta"]["data_license"] == "CC0-1.0"
+
     async def test_assertion_minimal_omits_submitters(self, mcp_client) -> None:
         result = await mcp_client.call_tool(
             "get_gene_disease_assertion",
@@ -290,6 +327,20 @@ class TestEvalHardening:
         sizes = [len(json.dumps(a)) for a in (a_min, a_com, a_std, a_full)]
         assert sizes == sorted(sizes) and len(set(sizes)) == 4  # strictly increasing
 
+    async def test_capabilities_documents_defaults_and_conflict(self, mcp_client) -> None:
+        sc = (await mcp_client.call_tool("get_server_capabilities", {})).structured_content
+        assert sc["tool_defaults"]["get_gene_disease_assertion"] == "standard"
+        assert sc["tool_defaults"]["search_genes"] == "compact"
+        cs = sc["conflict_semantics"]
+        assert set(cs["supporting"]) == {"Definitive", "Strong", "Moderate"}
+        assert "No Known Disease Relationship" in cs["against"]
+        assert "Animal Model Only" in cs["excluded"]
+        codes = {e["code"]: e for e in sc["error_codes"]}
+        assert codes["data_unavailable"]["operational_only"] is True
+        assert codes["invalid_input"]["operational_only"] is False
+        assert sc["error_codes_list"]  # back-compat flat list retained
+        assert "ambiguous_query_example" in sc
+
     async def test_capabilities_documents_field_errors_and_cursor(self, mcp_client) -> None:
         result = await mcp_client.call_tool("get_server_capabilities", {})
         rf = result.structured_content["response_fields"]
@@ -298,6 +349,19 @@ class TestEvalHardening:
         assert "cursor" in rf
         resources = result.structured_content["resources"]
         assert "gencc://research-use" in resources
+
+    async def test_resolve_dual_arg_conflict_rejected(self, mcp_client) -> None:
+        result = await mcp_client.call_tool(
+            "resolve_identifier", {"query": "SKI", "identifier": "BRCA2"}
+        )
+        data = result.structured_content
+        assert data["success"] is False and data["error_code"] == "invalid_input"
+
+    async def test_resolve_dual_arg_equal_ok(self, mcp_client) -> None:
+        result = await mcp_client.call_tool(
+            "resolve_identifier", {"query": "SKI", "identifier": "SKI"}
+        )
+        assert result.structured_content["success"] is True
 
     async def test_resolve_identifier_ambiguous_query(
         self, mcp_client, service, monkeypatch
@@ -334,6 +398,47 @@ class TestEvalHardening:
         ids1 = {(r["gene_curie"], r["disease_curie"]) for r in d1["results"]}
         ids2 = {(r["gene_curie"], r["disease_curie"]) for r in d2["results"]}
         assert ids1.isdisjoint(ids2)
+
+    async def test_search_genes_pages_forward_with_cursor(self, mcp_client) -> None:
+        first = await mcp_client.call_tool("search_genes", {"query": "col", "limit": 1})
+        d1 = first.structured_content
+        assert "next_cursor" in d1["truncated"]
+        cont = d1["_meta"]["next_commands"][0]
+        assert cont["tool"] == "search_genes" and "cursor" in cont["arguments"]
+        second = await mcp_client.call_tool("search_genes", cont["arguments"])
+        d2 = second.structured_content
+        assert d2["success"] is True
+        assert {g["gene_curie"] for g in d1["genes"]}.isdisjoint(
+            {g["gene_curie"] for g in d2["genes"]}
+        )
+
+    async def test_search_diseases_pages_forward_with_cursor(self, mcp_client) -> None:
+        first = await mcp_client.call_tool("search_diseases", {"query": "syndrome", "limit": 1})
+        d1 = first.structured_content
+        assert "next_cursor" in d1["truncated"]
+        cont = d1["_meta"]["next_commands"][0]
+        assert cont["tool"] == "search_diseases" and "cursor" in cont["arguments"]
+        second = await mcp_client.call_tool("search_diseases", cont["arguments"])
+        assert second.structured_content["success"] is True
+
+    async def test_get_gene_curations_pages_forward_with_cursor(self, mcp_client) -> None:
+        first = await mcp_client.call_tool("get_gene_curations", {"gene": "COL1A1", "limit": 1})
+        d1 = first.structured_content
+        assert "next_cursor" in d1["truncated"]
+        cont = d1["_meta"]["next_commands"][0]
+        assert cont["tool"] == "get_gene_curations" and "cursor" in cont["arguments"]
+        second = await mcp_client.call_tool("get_gene_curations", cont["arguments"])
+        assert second.structured_content["success"] is True
+        assert second.structured_content["gene"]["gene_symbol"] == "COL1A1"
+
+    async def test_search_genes_stale_cursor_rejected(self, mcp_client) -> None:
+        from gencc_link.services.cursor import encode_cursor
+
+        stale = encode_cursor(release="1999-01-01", offset=1, limit=1, filters={"query": "col"})
+        result = await mcp_client.call_tool("search_genes", {"cursor": stale})
+        data = result.structured_content
+        assert data["success"] is False and data["error_code"] == "invalid_input"
+        assert data["field_errors"][0]["field"] == "cursor"
 
     async def test_invalid_response_mode_is_structured(self, mcp_client) -> None:
         result = await mcp_client.call_tool(

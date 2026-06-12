@@ -15,11 +15,11 @@ from gencc_link.exceptions import AmbiguousQueryError, InvalidInputError, NotFou
 from gencc_link.models import BuildMeta
 from gencc_link.models.enums import RESPONSE_MODES, ResponseMode
 from gencc_link.services import shaping
-from gencc_link.services.cursor import decode_cursor
+from gencc_link.services.batch import batch_payload, dedupe_batch
+from gencc_link.services.cursor import decode_paged_cursor
 from gencc_link.services.filters import validate_find_filters
 
 _MAX_LIMIT = 200
-_BATCH_MAX = 20
 
 
 class _TTLCache:
@@ -86,6 +86,34 @@ class GenCCService:
             raise InvalidInputError("offset must be >= 0.", field="offset")
         return offset
 
+    def _decode_cursor(self, cursor: str) -> dict[str, Any]:
+        """Decode a page cursor, surfacing a stale/malformed cursor as invalid_input."""
+        try:
+            return decode_paged_cursor(cursor, current_release=self.get_meta().gencc_run_date)
+        except ValueError as exc:
+            raise InvalidInputError(str(exc), field="cursor") from exc
+
+    def _cursor_ctx(self, filters: dict[str, Any]) -> dict[str, Any]:
+        """Release-bound cursor context for ``truncation_block`` (refresh-safe paging)."""
+        return {"release": self.get_meta().gencc_run_date, "filters": filters}
+
+    def _restore_cursor(
+        self, cursor: str, key: str, default_value: str, default_mode: str
+    ) -> tuple[str, str, int, int]:
+        """Restore (value-for-``key``, response_mode, limit, offset) from a page cursor.
+
+        Shared by the single-key paged tools: ``search_*`` carry ``key='query'``;
+        ``get_*_curations`` carry ``key='gene'`` / ``'disease'`` (the resolved curie).
+        """
+        cur = self._decode_cursor(cursor)
+        flt = cur["flt"]
+        return (
+            flt.get(key, default_value),
+            flt.get("response_mode", default_mode),
+            cur["lim"],
+            cur["o"],
+        )
+
     def get_meta(self) -> BuildMeta:
         """Return build provenance (cached for the process lifetime)."""
         return self._repo.get_meta()
@@ -97,8 +125,18 @@ class GenCCService:
     # --- search ---------------------------------------------------------
 
     def search_genes(
-        self, query: str, *, response_mode: str = "compact", limit: int = 20, offset: int = 0
+        self,
+        query: str,
+        *,
+        response_mode: str = "compact",
+        limit: int = 20,
+        offset: int = 0,
+        cursor: str | None = None,
     ) -> dict[str, Any]:
+        if cursor is not None:
+            query, response_mode, limit, offset = self._restore_cursor(
+                cursor, "query", query, response_mode
+            )
         mode = self._validate_mode(response_mode)
         if not query or not query.strip():
             raise InvalidInputError("query must not be empty.", field="query")
@@ -118,15 +156,30 @@ class GenCCService:
         }
         if hits:
             payload["headline"] = shaping.genes_search_headline(query.strip(), hits, total)
-        trunc = shaping.truncation_block(total, limit, offset)
+        trunc = shaping.truncation_block(
+            total,
+            limit,
+            offset,
+            cursor_context=self._cursor_ctx({"query": query.strip(), "response_mode": mode}),
+        )
         if trunc:
             payload["truncated"] = trunc
         self._cache.put(key, payload)
         return payload
 
     def search_diseases(
-        self, query: str, *, response_mode: str = "compact", limit: int = 20, offset: int = 0
+        self,
+        query: str,
+        *,
+        response_mode: str = "compact",
+        limit: int = 20,
+        offset: int = 0,
+        cursor: str | None = None,
     ) -> dict[str, Any]:
+        if cursor is not None:
+            query, response_mode, limit, offset = self._restore_cursor(
+                cursor, "query", query, response_mode
+            )
         mode = self._validate_mode(response_mode)
         if not query or not query.strip():
             raise InvalidInputError("query must not be empty.", field="query")
@@ -146,7 +199,12 @@ class GenCCService:
         }
         if hits:
             payload["headline"] = shaping.diseases_search_headline(query.strip(), hits, total)
-        trunc = shaping.truncation_block(total, limit, offset)
+        trunc = shaping.truncation_block(
+            total,
+            limit,
+            offset,
+            cursor_context=self._cursor_ctx({"query": query.strip(), "response_mode": mode}),
+        )
         if trunc:
             payload["truncated"] = trunc
         self._cache.put(key, payload)
@@ -155,8 +213,18 @@ class GenCCService:
     # --- curations ------------------------------------------------------
 
     def get_gene_curations(
-        self, gene: str, *, response_mode: str = "compact", limit: int = 50, offset: int = 0
+        self,
+        gene: str,
+        *,
+        response_mode: str = "compact",
+        limit: int = 50,
+        offset: int = 0,
+        cursor: str | None = None,
     ) -> dict[str, Any]:
+        if cursor is not None:
+            gene, response_mode, limit, offset = self._restore_cursor(
+                cursor, "gene", gene, response_mode
+            )
         mode = self._validate_mode(response_mode)
         if not gene or not gene.strip():
             raise InvalidInputError("gene must not be empty.", field="gene")
@@ -179,14 +247,29 @@ class GenCCService:
             "total": total,
             "diseases": [shaping.assertion_dict(a, mode, omit_gene=True) for a in page],
         }
-        trunc = shaping.truncation_block(total, limit, offset)
+        trunc = shaping.truncation_block(
+            total,
+            limit,
+            offset,
+            cursor_context=self._cursor_ctx({"gene": summary.gene_curie, "response_mode": mode}),
+        )
         if trunc:
             payload["truncated"] = trunc
         return payload
 
     def get_disease_curations(
-        self, disease: str, *, response_mode: str = "compact", limit: int = 50, offset: int = 0
+        self,
+        disease: str,
+        *,
+        response_mode: str = "compact",
+        limit: int = 50,
+        offset: int = 0,
+        cursor: str | None = None,
     ) -> dict[str, Any]:
+        if cursor is not None:
+            disease, response_mode, limit, offset = self._restore_cursor(
+                cursor, "disease", disease, response_mode
+            )
         mode = self._validate_mode(response_mode)
         if not disease or not disease.strip():
             raise InvalidInputError("disease must not be empty.", field="disease")
@@ -209,41 +292,25 @@ class GenCCService:
             "total": total,
             "genes": [shaping.assertion_dict(a, mode, omit_disease=True) for a in page],
         }
-        trunc = shaping.truncation_block(total, limit, offset)
+        trunc = shaping.truncation_block(
+            total,
+            limit,
+            offset,
+            cursor_context=self._cursor_ctx(
+                {"disease": summary.disease_curie, "response_mode": mode}
+            ),
+        )
         if trunc:
             payload["truncated"] = trunc
         return payload
 
     # --- batch ----------------------------------------------------------
 
-    @staticmethod
-    def _dedupe_batch(items: list[str], *, field: str) -> list[str]:
-        """Validate and de-duplicate (case-insensitively) a batch input list."""
-        if not items:
-            raise InvalidInputError(f"{field} must not be empty.", field=field)
-        if len(items) > _BATCH_MAX:
-            raise InvalidInputError(
-                f"Too many values ({len(items)}); max {_BATCH_MAX} per call.", field=field
-            )
-        seen: set[str] = set()
-        ordered: list[str] = []
-        for raw in items:
-            if not isinstance(raw, str) or not raw.strip():
-                raise InvalidInputError(
-                    f"each {field} value must be a non-empty string.", field=field
-                )
-            value = raw.strip()
-            if value.lower() in seen:
-                continue
-            seen.add(value.lower())
-            ordered.append(value)
-        return ordered
-
     def get_genes_curations(
         self, genes: list[str], *, response_mode: str = "compact", limit_per_gene: int = 50
     ) -> dict[str, Any]:
         mode = self._validate_mode(response_mode)
-        ordered = self._dedupe_batch(genes, field="genes")
+        ordered, duplicates = dedupe_batch(genes, field="genes")
         limit = self._clamp_limit(limit_per_gene)
         results: list[dict[str, Any]] = []
         unresolved: list[dict[str, str]] = []
@@ -266,24 +333,20 @@ class GenCCService:
             if trunc:
                 block["truncated"] = trunc
             results.append(block)
-        payload: dict[str, Any] = {
-            "headline": (
-                f"Curations for {len(results)} of {len(ordered)} requested gene(s) "
-                f"({len(unresolved)} unresolved)."
-            ),
-            "requested": len(ordered),
-            "count": len(results),
-            "results": results,
-        }
-        if unresolved:
-            payload["unresolved"] = unresolved
-        return payload
+        return batch_payload(
+            noun="gene",
+            received=len(genes),
+            ordered=ordered,
+            results=results,
+            unresolved=unresolved,
+            duplicates=duplicates,
+        )
 
     def get_diseases_curations(
         self, diseases: list[str], *, response_mode: str = "compact", limit_per_disease: int = 50
     ) -> dict[str, Any]:
         mode = self._validate_mode(response_mode)
-        ordered = self._dedupe_batch(diseases, field="diseases")
+        ordered, duplicates = dedupe_batch(diseases, field="diseases")
         limit = self._clamp_limit(limit_per_disease)
         results: list[dict[str, Any]] = []
         unresolved: list[dict[str, str]] = []
@@ -306,18 +369,14 @@ class GenCCService:
             if trunc:
                 block["truncated"] = trunc
             results.append(block)
-        payload: dict[str, Any] = {
-            "headline": (
-                f"Curations for {len(results)} of {len(ordered)} requested disease(s) "
-                f"({len(unresolved)} unresolved)."
-            ),
-            "requested": len(ordered),
-            "count": len(results),
-            "results": results,
-        }
-        if unresolved:
-            payload["unresolved"] = unresolved
-        return payload
+        return batch_payload(
+            noun="disease",
+            received=len(diseases),
+            ordered=ordered,
+            results=results,
+            unresolved=unresolved,
+            duplicates=duplicates,
+        )
 
     # --- detail ---------------------------------------------------------
 
@@ -374,17 +433,7 @@ class GenCCService:
         cursor: str | None = None,
     ) -> dict[str, Any]:
         if cursor is not None:
-            try:
-                cur = decode_cursor(cursor)
-            except ValueError as exc:
-                raise InvalidInputError(str(exc), field="cursor") from exc
-            current_release = self.get_meta().gencc_run_date
-            if cur["r"] != current_release:
-                raise InvalidInputError(
-                    f"Cursor was minted against GenCC release {cur['r']!r} but the "
-                    f"current release is {current_release!r}; restart the sweep.",
-                    field="cursor",
-                )
+            cur = self._decode_cursor(cursor)
             flt = cur["flt"]
             gene = flt.get("gene")
             disease = flt.get("disease")
@@ -509,8 +558,12 @@ class GenCCService:
                 candidates=[result["gene"]["gene_curie"], result["disease"]["disease_curie"]],
             )
         if result["gene"] is None and result["disease"] is None:
-            raise NotFoundError(
-                f"Could not resolve {query!r} to a GenCC gene or disease. Try search_genes "
-                "or search_diseases."
+            scope = {"gene": "GenCC gene", "disease": "GenCC disease"}.get(
+                kind, "GenCC gene or disease"
             )
+            hint = {
+                "gene": "Try search_genes.",
+                "disease": "Try search_diseases.",
+            }.get(kind, "Try search_genes or search_diseases.")
+            raise NotFoundError(f"Could not resolve {query!r} to a {scope}. {hint}")
         return result

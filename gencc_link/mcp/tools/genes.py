@@ -12,6 +12,7 @@ from gencc_link.mcp.next_commands import (
     after_gene_curations,
     after_genes_curations,
     after_search_genes,
+    cmd,
 )
 from gencc_link.mcp.schemas import (
     GENE_CURATIONS_SCHEMA,
@@ -43,21 +44,30 @@ def register_gene_tools(mcp: FastMCP) -> None:
             "Search the GenCC gene catalog by approved symbol, partial symbol, or "
             "HGNC id. Returns ranked genes with assertion roll-ups (number of "
             "diseases, submitters, strongest classification, conflict flag). Use to "
-            "resolve free text before get_gene_curations."
+            "resolve free text before get_gene_curations. Page large result sets via "
+            "the release-bound truncated.next_cursor (surfaced as _meta.next_commands[0])."
         ),
     )
     async def search_genes(
-        query: str,
+        query: str = "",
         response_mode: _MODE = "compact",
         limit: int = 20,
         offset: int = 0,
+        cursor: str | None = None,
     ) -> dict[str, Any]:
         async def call() -> dict[str, Any]:
             payload = get_gencc_service().search_genes(
-                query, response_mode=response_mode, limit=limit, offset=offset
+                query, response_mode=response_mode, limit=limit, offset=offset, cursor=cursor
             )
             curies = [g["gene_curie"] for g in payload.get("genes", [])]
-            payload["_meta"] = {"next_commands": after_search_genes(curies, query)}
+            nexts: list[dict[str, Any]] = []
+            trunc = payload.get("truncated") or {}
+            if trunc.get("next_cursor"):
+                # Page-forward first so an agent sweeping next_commands[0] walks
+                # the full result set (refresh-safe).
+                nexts.append(cmd("search_genes", cursor=trunc["next_cursor"]))
+            nexts.extend(after_search_genes(curies, payload.get("query", query)))
+            payload["_meta"] = {"next_commands": nexts[:5]}
             return payload
 
         return await run_mcp_tool(
@@ -77,22 +87,29 @@ def register_gene_tools(mcp: FastMCP) -> None:
             "Return all GenCC gene-disease validity assertions for one gene "
             "(by symbol or HGNC id), grouped by disease, each with a consensus "
             "classification across submitters and a conflict flag. Widen "
-            "response_mode for the per-submitter breakdown."
+            "response_mode for the per-submitter breakdown. Page via the "
+            "release-bound truncated.next_cursor (surfaced as _meta.next_commands[0])."
         ),
     )
     async def get_gene_curations(
-        gene: str,
+        gene: str = "",
         response_mode: _MODE = "compact",
         limit: int = 50,
         offset: int = 0,
+        cursor: str | None = None,
     ) -> dict[str, Any]:
         async def call() -> dict[str, Any]:
             payload = get_gencc_service().get_gene_curations(
-                gene, response_mode=response_mode, limit=limit, offset=offset
+                gene, response_mode=response_mode, limit=limit, offset=offset, cursor=cursor
             )
             gene_arg = payload.get("gene", {}).get("gene_curie", gene)
             disease_curies = [d["disease_curie"] for d in payload.get("diseases", [])]
-            payload["_meta"] = {"next_commands": after_gene_curations(gene_arg, disease_curies)}
+            nexts: list[dict[str, Any]] = []
+            trunc = payload.get("truncated") or {}
+            if trunc.get("next_cursor"):
+                nexts.append(cmd("get_gene_curations", gene=gene_arg, cursor=trunc["next_cursor"]))
+            nexts.extend(after_gene_curations(gene_arg, disease_curies))
+            payload["_meta"] = {"next_commands": nexts[:5]}
             return payload
 
         return await run_mcp_tool(

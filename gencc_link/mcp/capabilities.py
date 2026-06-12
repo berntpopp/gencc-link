@@ -9,10 +9,12 @@ from importlib.metadata import PackageNotFoundError, version
 from typing import TYPE_CHECKING, Any
 
 from gencc_link.constants import (
+    AGAINST_CLASSIFICATIONS,
     CLASSIFICATION_ORDER,
     CLASSIFICATION_RANKS,
     DATA_LICENSE,
     RECOMMENDED_CITATION,
+    SUPPORTING_CLASSIFICATIONS,
 )
 from gencc_link.mcp.resources import (
     GENCC_LICENSE_NOTE,
@@ -65,7 +67,25 @@ def _static_surface() -> dict[str, Any]:
             "minimal": "ids + headline + counts only",
             "compact": "default; consensus + summary lists, no per-submitter detail",
             "standard": "adds per-submitter classification, MOI, dates, report URLs",
-            "full": "adds submitter curies, criteria URLs, PMIDs, and raw submission rows",
+            "full": "adds submitter curies, criteria URLs, and PMIDs per submitter. "
+            "get_gene_disease_assertion full also returns a raw-extras submissions[] "
+            "array (sgc_id, notes, original disease ids, version, run date) -- NOT the "
+            "harmonized fields already in submitters[], and with no pair-level union "
+            "pmids. Correlate a submission row to a submitter via submitter_title.",
+        },
+        "tool_defaults": {
+            "get_server_capabilities": "n/a",
+            "get_gencc_diagnostics": "n/a",
+            "search_genes": "compact",
+            "search_diseases": "compact",
+            "get_gene_curations": "compact",
+            "get_disease_curations": "compact",
+            "get_genes_curations": "compact",
+            "get_diseases_curations": "compact",
+            "get_gene_disease_assertion": "standard",
+            "find_curations": "compact",
+            "list_submitters": "n/a",
+            "resolve_identifier": "n/a",
         },
         "recommended_workflows": [
             "gene symbol -> search_genes -> get_gene_curations -> get_gene_disease_assertion",
@@ -90,6 +110,43 @@ def _static_surface() -> dict[str, Any]:
             "pairs (no per-row detail) for cheap paging",
         },
         "error_codes": [
+            {
+                "code": "invalid_input",
+                "operational_only": False,
+                "when": "malformed/out-of-vocab argument; carries field_errors + accepted set",
+            },
+            {
+                "code": "not_found",
+                "operational_only": False,
+                "when": "a well-formed identifier resolves to nothing",
+            },
+            {
+                "code": "ambiguous_query",
+                "operational_only": False,
+                "when": "resolve_identifier(kind='auto') when text matches a gene AND a disease",
+            },
+            {
+                "code": "data_unavailable",
+                "operational_only": True,
+                "when": "database not built (ingest/ops); not reachable from a well-formed query",
+            },
+            {
+                "code": "upstream_unavailable",
+                "operational_only": True,
+                "when": "thegencc.org download failed (ingest/ops)",
+            },
+            {
+                "code": "rate_limited",
+                "operational_only": True,
+                "when": "GenCC daily download quota exceeded (ingest/ops)",
+            },
+            {
+                "code": "internal_error",
+                "operational_only": True,
+                "when": "unexpected server fault",
+            },
+        ],
+        "error_codes_list": [
             "invalid_input",
             "not_found",
             "ambiguous_query",
@@ -98,6 +155,27 @@ def _static_surface() -> dict[str, Any]:
             "rate_limited",
             "internal_error",
         ],
+        "conflict_semantics": {
+            "supporting": sorted(
+                SUPPORTING_CLASSIFICATIONS, key=lambda t: -CLASSIFICATION_RANKS[t]
+            ),
+            "against": sorted(AGAINST_CLASSIFICATIONS, key=lambda t: -CLASSIFICATION_RANKS[t]),
+            "excluded": [
+                t
+                for t in CLASSIFICATION_ORDER
+                if t not in SUPPORTING_CLASSIFICATIONS and t not in AGAINST_CLASSIFICATIONS
+            ],
+            "rule": "has_conflict is true when at least one supporting and one against "
+            "classification coexist for a pair; excluded tiers (Supportive, Limited, "
+            "Animal Model Only) never trigger it.",
+        },
+        "ambiguous_query_example": {
+            "trigger": "resolve_identifier(query=X, kind='auto') where X is, "
+            "case-insensitively, both an approved gene symbol and a harmonized disease title",
+            "note": "Harmonized MONDO titles are descriptive phrases, so exact symbol/title "
+            "collisions are rare in current data; pass kind='gene' or kind='disease' to "
+            "disambiguate deterministically. ambiguous_query is never raised when kind is set.",
+        },
         "token_cost_hints": {
             "search_genes": "~1-3kB",
             "get_gene_curations": "compact ~2-5kB; full larger with per-submitter rows",
@@ -123,12 +201,21 @@ def _static_surface() -> dict[str, Any]:
             "classification/submitter/moi filter (compact/standard/full)",
             "field_errors": "invalid_input only: a list of {field, reason} objects "
             "pinpointing each rejected argument (schema-level and domain validation).",
-            "cursor": "find_curations only: an opaque, release-bound page token from a "
-            "prior truncated.next_cursor; reproduces the exact next page and is rejected "
-            "if the data was refreshed since it was minted.",
-            "next_cursor": "find_curations truncated block: the opaque cursor to pass back "
-            "as `cursor` for refresh-safe page-forward (also the first "
+            "cursor": "all paged tools (search_genes, search_diseases, get_gene_curations, "
+            "get_disease_curations, find_curations): an opaque, release-bound page token "
+            "from a prior truncated.next_cursor; reproduces the exact next page and is "
+            "rejected (invalid_input, field=cursor) if the data was refreshed since it was "
+            "minted. Batch get_genes_curations/get_diseases_curations are non-paged.",
+            "next_cursor": "truncated block of every paged tool: the opaque cursor to pass "
+            "back as `cursor` for refresh-safe page-forward (also the first "
             "_meta.next_commands entry).",
+            "received": "get_genes_curations/get_diseases_curations: raw input list length "
+            "before case-insensitive de-duplication (requested = distinct queried).",
+            "duplicates": "get_genes_curations/get_diseases_curations: the folded duplicate "
+            "inputs (present only when some were removed).",
+            "tool_defaults": "per-tool default response_mode (see top-level tool_defaults).",
+            "conflict_semantics": "the supporting/against/excluded classification tiers that "
+            "define has_conflict (see top-level conflict_semantics).",
             "has_conflict": "true when supporting and against assertions coexist for a pair",
             "submitted_as_date_iso": "per-submitter/submission: submitted_as_date "
             "normalized to an ISO-8601 date (YYYY-MM-DD); the verbatim "

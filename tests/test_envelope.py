@@ -47,7 +47,7 @@ class TestHappyPath:
 
         out = await run_mcp_tool("t", body)
         assert out["_meta"]["next_commands"]
-        assert out["_meta"]["data_license"]
+        assert out["_meta"]["unsafe_for_clinical_use"] is True
 
     async def test_does_not_overwrite_explicit_success(self) -> None:
         async def body() -> dict[str, Any]:
@@ -201,6 +201,26 @@ class TestCitationByMode:
         out = await run_mcp_tool("t", body)
         assert out["_meta"]["recommended_citation"]
         assert "response_mode" not in out["_meta"]
+
+    async def test_data_license_only_in_full(self) -> None:
+        async def body() -> dict[str, Any]:
+            return {}
+
+        full = await run_mcp_tool("t", body, response_mode="full")
+        assert full["_meta"]["data_license"] == "CC0-1.0"
+        for mode in ("minimal", "compact", "standard"):
+            out = await run_mcp_tool("t", body, response_mode=mode)
+            assert "data_license" not in out["_meta"]
+            assert out["_meta"]["unsafe_for_clinical_use"] is True
+
+    async def test_error_envelope_citation_ref_only(self) -> None:
+        out = await run_mcp_tool("t", _raiser(NotFoundError("x")))
+        meta = out["_meta"]
+        assert meta["citation_ref"] == "gencc://citation"
+        assert "recommended_citation" not in meta
+        assert "citation_short" not in meta  # an error carries no claim to cite
+        assert "data_license" not in meta
+        assert meta["unsafe_for_clinical_use"] is True
 
 
 class TestErrorNextCommands:
