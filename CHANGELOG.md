@@ -9,6 +9,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **MCP evaluation hardening** (closes `docs/mcp-evaluation.md`, target >9.5/10):
+  - `find_curations` **validates** `classification`/`submitter`/`moi`: out-of-vocabulary
+    or wrong-case values return `invalid_input` with the accepted set + a "did you
+    mean" hint instead of a misleading empty result. `submitter`/`moi` valid-sets
+    are data-derived (so GenCC's own quirky titles like `"Y-linked inheritance"`
+    are accepted); `classification` uses the controlled vocabulary.
+  - Each submission-filtered `find_curations` row carries a `matched` field naming
+    the triggering submission(s).
+  - **Error envelopes** now include `_meta.next_commands` recovery steps (e.g. a
+    `not_found` hands back the matching `search_*` call); zero-result searches
+    propagate the original query instead of an empty one.
+  - Capabilities exposes data-derived `inheritance_modes`, `data_notes`, an `moi`
+    convention, and documents `matched`/`citation_ref`/`request_id` response fields.
+  - Every `_meta` carries `request_id` + `elapsed_ms`; `minimal`/`compact` drop the
+    redundant parent id from list rows and use a cacheable
+    `_meta.citation_ref = "gencc://citation"` instead of the full citation.
+  - `get_gencc_diagnostics` reports daily download-quota headroom
+    (`used_today` / `daily_quota` / `remaining`).
 - **Data lifecycle**: build the database once on container startup (idempotent
   entrypoint running `gencc-link-data refresh`), then refresh it on a schedule.
 - **In-app refresh scheduler** (dependency-free asyncio loop, unified/http only)
