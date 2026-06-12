@@ -394,3 +394,32 @@ class TestBatchCurations:
         assert out["requested"] == 2
         assert out["count"] >= 1
         assert all("genes" in b for b in out["results"])
+
+
+class TestFindCurationsCursor:
+    def test_truncation_has_next_cursor(self, service: GenCCService) -> None:
+        page = service.find_curations(classification=["Definitive"], limit=2, offset=0)
+        assert page["total"] > 2
+        assert "next_cursor" in page["truncated"]
+
+    def test_cursor_resumes_same_query(self, service: GenCCService) -> None:
+        first = service.find_curations(classification=["Definitive"], limit=2, offset=0)
+        cursor = first["truncated"]["next_cursor"]
+        second = service.find_curations(cursor=cursor)
+        assert second["total"] == first["total"]
+        first_ids = {(r["gene_curie"], r["disease_curie"]) for r in first["results"]}
+        second_ids = {(r["gene_curie"], r["disease_curie"]) for r in second["results"]}
+        assert first_ids.isdisjoint(second_ids)  # no overlap across the page boundary
+
+    def test_stale_cursor_rejected(self, service: GenCCService) -> None:
+        from gencc_link.services.cursor import encode_cursor
+
+        stale = encode_cursor(
+            release="1999-01-01",
+            offset=0,
+            limit=2,
+            filters={"classification": ["Definitive"]},
+        )
+        with pytest.raises(InvalidInputError) as exc:
+            service.find_curations(cursor=stale)
+        assert exc.value.field == "cursor"

@@ -18,6 +18,7 @@ from gencc_link.models import (
     SubmitterSummary,
 )
 from gencc_link.models.enums import ResponseMode
+from gencc_link.services.cursor import encode_cursor
 
 
 def gene_headline(gene: GeneSummary) -> str:
@@ -224,14 +225,35 @@ def submission_dict(s: SubmissionRecord) -> dict[str, Any]:
     }
 
 
-def truncation_block(total: int, limit: int, offset: int) -> dict[str, Any] | None:
-    """Return a truncation hint when more rows exist beyond this page."""
+def truncation_block(
+    total: int,
+    limit: int,
+    offset: int,
+    *,
+    cursor_context: dict[str, Any] | None = None,
+) -> dict[str, Any] | None:
+    """Return a truncation hint when more rows exist beyond this page.
+
+    When ``cursor_context`` (``{"release": str | None, "filters": dict}``) is
+    given, also mint an opaque ``next_cursor`` that reproduces the next page and
+    is bound to the data release (refresh-safe). Callers that page by raw offset
+    only (search_*, get_*_curations) omit it.
+    """
     returned = max(0, min(limit, total - offset))
     if offset + returned >= total:
         return None
-    return {
+    block: dict[str, Any] = {
         "total": total,
         "returned": returned,
         "next_offset": offset + returned,
-        "hint": "More results available; re-call with the next offset to page further.",
+        "hint": "More results available; re-call with next_offset, or follow "
+        "next_cursor for refresh-safe paging.",
     }
+    if cursor_context is not None:
+        block["next_cursor"] = encode_cursor(
+            release=cursor_context["release"],
+            offset=offset + returned,
+            limit=limit,
+            filters=cursor_context["filters"],
+        )
+    return block

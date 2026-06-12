@@ -15,6 +15,7 @@ from gencc_link.exceptions import AmbiguousQueryError, InvalidInputError, NotFou
 from gencc_link.models import BuildMeta
 from gencc_link.models.enums import RESPONSE_MODES, ResponseMode
 from gencc_link.services import shaping
+from gencc_link.services.cursor import decode_cursor
 from gencc_link.services.filters import validate_find_filters
 
 _MAX_LIMIT = 200
@@ -370,7 +371,31 @@ class GenCCService:
         ids_only: bool = False,
         limit: int = 50,
         offset: int = 0,
+        cursor: str | None = None,
     ) -> dict[str, Any]:
+        if cursor is not None:
+            try:
+                cur = decode_cursor(cursor)
+            except ValueError as exc:
+                raise InvalidInputError(str(exc), field="cursor") from exc
+            current_release = self.get_meta().gencc_run_date
+            if cur["r"] != current_release:
+                raise InvalidInputError(
+                    f"Cursor was minted against GenCC release {cur['r']!r} but the "
+                    f"current release is {current_release!r}; restart the sweep.",
+                    field="cursor",
+                )
+            flt = cur["flt"]
+            gene = flt.get("gene")
+            disease = flt.get("disease")
+            classification = flt.get("classification")
+            submitter = flt.get("submitter")
+            moi = flt.get("moi")
+            has_conflict = flt.get("has_conflict")
+            response_mode = flt.get("response_mode", response_mode)
+            ids_only = flt.get("ids_only", ids_only)
+            offset = cur["o"]
+            limit = cur["lim"]
         mode = self._validate_mode(response_mode)
         limit = self._clamp_limit(limit)
         offset = self._validate_offset(offset)
@@ -431,7 +456,25 @@ class GenCCService:
             },
             "results": rows,
         }
-        trunc = shaping.truncation_block(total, limit, offset)
+        cursor_filters = {
+            "gene": gene,
+            "disease": disease,
+            "classification": classification,
+            "submitter": submitter,
+            "moi": moi,
+            "has_conflict": has_conflict,
+            "response_mode": mode,
+            "ids_only": ids_only,
+        }
+        trunc = shaping.truncation_block(
+            total,
+            limit,
+            offset,
+            cursor_context={
+                "release": self.get_meta().gencc_run_date,
+                "filters": cursor_filters,
+            },
+        )
         if trunc:
             payload["truncated"] = trunc
         return payload

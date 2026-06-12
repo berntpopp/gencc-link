@@ -282,6 +282,23 @@ class TestEvalHardening:
         assert sizes == sorted(sizes) and len(set(sizes)) == 4  # strictly increasing
 
 
+    async def test_find_curations_pages_forward_with_cursor(self, mcp_client) -> None:
+        first = await mcp_client.call_tool(
+            "find_curations", {"classification": ["Definitive"], "limit": 2}
+        )
+        d1 = first.structured_content
+        assert "next_cursor" in d1["truncated"]
+        cont = d1["_meta"]["next_commands"][0]
+        assert cont["tool"] == "find_curations"
+        assert "cursor" in cont["arguments"]
+        # follow the continuation
+        second = await mcp_client.call_tool("find_curations", cont["arguments"])
+        d2 = second.structured_content
+        assert d2["success"] is True
+        ids1 = {(r["gene_curie"], r["disease_curie"]) for r in d1["results"]}
+        ids2 = {(r["gene_curie"], r["disease_curie"]) for r in d2["results"]}
+        assert ids1.isdisjoint(ids2)
+
     async def test_invalid_response_mode_is_structured(self, mcp_client) -> None:
         result = await mcp_client.call_tool(
             "get_gene_disease_assertion",
