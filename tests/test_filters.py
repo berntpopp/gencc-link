@@ -13,14 +13,14 @@ MOI_TITLES = {"Autosomal dominant", "Autosomal recessive", "Y-linked inheritance
 
 
 def _run(**kw: object) -> tuple[list[str] | None, list[str] | None, str | None]:
-    base: dict[str, object] = dict(
-        classification=None,
-        submitter=None,
-        moi=None,
-        valid_submitter_titles=SUBM_TITLES,
-        valid_submitter_curies=SUBM_CURIES,
-        valid_moi_titles=MOI_TITLES,
-    )
+    base: dict[str, object] = {
+        "classification": None,
+        "submitter": None,
+        "moi": None,
+        "valid_submitter_titles": SUBM_TITLES,
+        "valid_submitter_curies": SUBM_CURIES,
+        "valid_moi_titles": MOI_TITLES,
+    }
     base.update(kw)
     return validate_find_filters(**base)  # type: ignore[arg-type]
 

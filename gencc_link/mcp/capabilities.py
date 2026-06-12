@@ -160,8 +160,7 @@ def _inheritance_modes() -> list[dict[str, Any]]:
         from gencc_link.mcp.service_adapters import get_gencc_service
 
         return [
-            {"title": title, "curie": curie}
-            for title, curie in get_gencc_service().distinct_moi()
+            {"title": title, "curie": curie} for title, curie in get_gencc_service().distinct_moi()
         ]
     except Exception:  # data not built yet or unreadable
         return []

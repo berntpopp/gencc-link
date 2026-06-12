@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -110,7 +110,7 @@ def _write_cache(
 
 def _today_utc() -> str:
     """Current UTC calendar date as ``YYYY-MM-DD`` (the quota reset boundary)."""
-    return datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    return datetime.now(UTC).strftime("%Y-%m-%d")
 
 
 def _load_cache_dict(config: GenCCDataConfigModel) -> dict[str, object]:
@@ -132,12 +132,13 @@ def _bump_download_count(config: GenCCDataConfigModel) -> None:
     and ``HEAD`` are exempt and never call this.
     """
     data = _load_cache_dict(config)
-    rec = data.get("downloads")
     today = _today_utc()
-    if not isinstance(rec, dict) or rec.get("date") != today:
-        rec = {"date": today, "count": 0}
-    rec["count"] = int(rec.get("count", 0)) + 1
-    data["downloads"] = rec
+    rec = data.get("downloads")
+    count = 0
+    if isinstance(rec, dict) and rec.get("date") == today:
+        raw = rec.get("count", 0)
+        count = raw if isinstance(raw, int) else 0
+    data["downloads"] = {"date": today, "count": count + 1}
     _cache_path(config).write_text(json.dumps(data, indent=2), encoding="utf-8")
 
 
