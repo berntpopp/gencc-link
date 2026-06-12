@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING, Annotated, Any
 
 from pydantic import Field
 
+from gencc_link.exceptions import InvalidInputError
 from gencc_link.mcp.annotations import READ_ONLY_OPEN_WORLD
 from gencc_link.mcp.envelope import McpErrorContext, run_mcp_tool
 from gencc_link.mcp.next_commands import after_assertion, cmd
@@ -140,12 +141,20 @@ def register_assertion_tools(mcp: FastMCP) -> None:
             "Resolve free text to a canonical GenCC gene (HGNC) and/or disease "
             "(MONDO) identifier by exact symbol/id/title match. Use kind='gene' or "
             "kind='disease' to disambiguate; default 'auto' tries both and returns "
-            "ambiguous_query if the text matches both a gene and a disease."
+            "ambiguous_query if the text matches both a gene and a disease. "
+            "Accepts query or its alias identifier."
         ),
     )
-    async def resolve_identifier(query: str, kind: str = "auto") -> dict[str, Any]:
+    async def resolve_identifier(
+        query: str | None = None,
+        kind: str = "auto",
+        identifier: str | None = None,
+    ) -> dict[str, Any]:
         async def call() -> dict[str, Any]:
-            payload = get_gencc_service().resolve_identifier(query, kind=kind)
+            q = query if query is not None else identifier
+            if q is None:
+                raise InvalidInputError("query must not be empty.", field="query")
+            payload = get_gencc_service().resolve_identifier(q, kind=kind)
             nexts: list[dict[str, Any]] = []
             if payload.get("gene"):
                 nexts.append(cmd("get_gene_curations", gene=payload["gene"]["gene_curie"]))
@@ -159,5 +168,7 @@ def register_assertion_tools(mcp: FastMCP) -> None:
         return await run_mcp_tool(
             "resolve_identifier",
             call,
-            context=McpErrorContext("resolve_identifier", arguments={"query": query}),
+            context=McpErrorContext(
+                "resolve_identifier", arguments={"query": query or identifier or ""}
+            ),
         )

@@ -142,6 +142,10 @@ def _error_envelope(
 ) -> dict[str, Any]:
     error_code, message, retryable = _classify(exc)
     field_name = getattr(exc, "field", None)
+    if field_name is None and isinstance(exc, PydanticValidationError):
+        errs = exc.errors()
+        if errs and errs[0]["loc"]:
+            field_name = str(errs[0]["loc"][-1])
     meta: dict[str, Any] = {"tool": context.tool_name, **_provenance_meta()}
     meta["request_id"] = request_id
     meta["elapsed_ms"] = elapsed_ms
@@ -160,6 +164,22 @@ def _error_envelope(
     if field_errors is not None:
         envelope["field_errors"] = field_errors
     return envelope
+
+
+def validation_error_envelope(
+    *,
+    tool_name: str,
+    arguments: dict[str, Any],
+    exc: PydanticValidationError,
+) -> dict[str, Any]:
+    """Structured ``invalid_input`` envelope for a pre-body argument-validation
+    failure (caught by the MCP middleware before the tool body runs).
+
+    Mirrors ``_error_envelope`` exactly so an arg-validation failure is
+    byte-compatible with a domain ``invalid_input`` raised inside a tool body.
+    """
+    ctx = McpErrorContext(tool_name=tool_name, arguments=arguments)
+    return _error_envelope(exc, ctx, request_id=uuid.uuid4().hex[:12], elapsed_ms=0.0)
 
 
 async def run_mcp_tool(

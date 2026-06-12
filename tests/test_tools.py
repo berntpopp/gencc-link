@@ -282,6 +282,31 @@ class TestEvalHardening:
         assert sizes == sorted(sizes) and len(set(sizes)) == 4  # strictly increasing
 
 
+    async def test_invalid_response_mode_is_structured(self, mcp_client) -> None:
+        result = await mcp_client.call_tool(
+            "get_gene_disease_assertion",
+            {"gene": "SKI", "disease": "MONDO:0008426", "response_mode": "ultra"},
+        )
+        data = result.structured_content
+        assert data["success"] is False
+        assert data["error_code"] == "invalid_input"
+        assert data["field_errors"]
+        assert data["_meta"]["next_commands"][0]["tool"] == "get_server_capabilities"
+        assert isinstance(data["_meta"]["request_id"], str)
+
+    async def test_unknown_argument_is_structured(self, mcp_client) -> None:
+        result = await mcp_client.call_tool("search_genes", {"identifier": "SKI"})
+        data = result.structured_content
+        assert data["success"] is False
+        assert data["error_code"] == "invalid_input"
+        assert data["_meta"]["next_commands"]
+
+    async def test_resolve_identifier_alias(self, mcp_client) -> None:
+        result = await mcp_client.call_tool("resolve_identifier", {"identifier": "SKI"})
+        data = result.structured_content
+        assert data["success"] is True
+        assert data["gene"]["gene_symbol"] == "SKI"
+
     async def test_empty_and_overcap_errors_are_chainable(self, mcp_client) -> None:
         # empty query
         r1 = await mcp_client.call_tool("search_genes", {"query": "   "})
