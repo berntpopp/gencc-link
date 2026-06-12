@@ -15,6 +15,7 @@ from gencc_link.exceptions import InvalidInputError, NotFoundError
 from gencc_link.models import BuildMeta
 from gencc_link.models.enums import RESPONSE_MODES, ResponseMode
 from gencc_link.services import shaping
+from gencc_link.services.filters import validate_find_filters
 
 _MAX_LIMIT = 200
 
@@ -170,7 +171,7 @@ class GenCCService:
             "headline": shaping.gene_headline(summary),
             "count": len(page),
             "total": total,
-            "diseases": [shaping.assertion_dict(a, mode) for a in page],
+            "diseases": [shaping.assertion_dict(a, mode, omit_gene=True) for a in page],
         }
         trunc = shaping.truncation_block(total, limit, offset)
         if trunc:
@@ -200,7 +201,7 @@ class GenCCService:
             "headline": shaping.disease_headline(summary),
             "count": len(page),
             "total": total,
-            "genes": [shaping.assertion_dict(a, mode) for a in page],
+            "genes": [shaping.assertion_dict(a, mode, omit_disease=True) for a in page],
         }
         trunc = shaping.truncation_block(total, limit, offset)
         if trunc:
@@ -269,16 +270,42 @@ class GenCCService:
                 "Provide at least one filter (gene, disease, classification, submitter, "
                 "moi, or has_conflict)."
             )
-        results, total = self._repo.find_assertions(
+
+        valid_subm_titles: set[str] = set()
+        valid_subm_curies: set[str] = set()
+        valid_moi_titles: set[str] = set()
+        if submitter:
+            subs = self._repo.list_submitters()
+            valid_subm_titles = {s.submitter_title for s in subs if s.submitter_title}
+            valid_subm_curies = {s.submitter_curie for s in subs if s.submitter_curie}
+        if moi and moi.strip():
+            valid_moi_titles = {title for title, _ in self._repo.distinct_moi()}
+
+        classification, submitter, moi = validate_find_filters(
+            classification=classification,
+            submitter=submitter,
+            moi=moi,
+            valid_submitter_titles=valid_subm_titles,
+            valid_submitter_curies=valid_subm_curies,
+            valid_moi_titles=valid_moi_titles,
+        )
+
+        results, total, matched = self._repo.find_assertions(
             gene=gene.strip() if gene else None,
             disease=disease.strip() if disease else None,
             classification=classification,
             submitter=submitter,
-            moi=moi.strip() if moi else None,
+            moi=moi,
             has_conflict=has_conflict,
             limit=limit,
             offset=offset,
         )
+        rows: list[dict[str, Any]] = []
+        for a in results:
+            row = shaping.assertion_dict(a, mode)
+            if matched and mode != "minimal":
+                row["matched"] = matched.get((a.gene_curie, a.disease_curie), [])
+            rows.append(row)
         payload: dict[str, Any] = {
             "count": len(results),
             "total": total,
@@ -290,7 +317,7 @@ class GenCCService:
                 "moi": moi,
                 "has_conflict": has_conflict,
             },
-            "results": [shaping.assertion_dict(a, mode) for a in results],
+            "results": rows,
         }
         trunc = shaping.truncation_block(total, limit, offset)
         if trunc:

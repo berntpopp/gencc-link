@@ -239,3 +239,64 @@ class TestCache:
         # With cache disabled, distinct objects each call.
         assert first is not second
         assert first == second
+
+
+class TestFindValidation:
+    def test_invalid_classification_raises(self, service: GenCCService) -> None:
+        with pytest.raises(InvalidInputError) as e:
+            service.find_curations(classification=["Pathogenic"])
+        assert e.value.field == "classification"
+
+    def test_invalid_submitter_raises(self, service: GenCCService) -> None:
+        with pytest.raises(InvalidInputError) as e:
+            service.find_curations(submitter=["NotARealLab"])
+        assert e.value.field == "submitter"
+
+    def test_invalid_moi_raises(self, service: GenCCService) -> None:
+        with pytest.raises(InvalidInputError) as e:
+            service.find_curations(moi="Recessive")
+        assert e.value.field == "moi"
+
+    def test_case_insensitive_classification_returns_data(self, service: GenCCService) -> None:
+        lower = service.find_curations(classification=["definitive"])
+        canon = service.find_curations(classification=["Definitive"])
+        assert lower["total"] == canon["total"] and lower["total"] > 0
+
+    def test_case_insensitive_submitter_returns_data(self, service: GenCCService) -> None:
+        out = service.find_curations(submitter=["clingen"])
+        assert out["total"] >= 1
+
+    def test_matched_present_in_compact(self, service: GenCCService) -> None:
+        out = service.find_curations(classification=["Refuted Evidence"], response_mode="compact")
+        assert out["results"]
+        assert all("matched" in r for r in out["results"])
+        first = out["results"][0]["matched"]
+        assert any(m["classification_title"] == "Refuted Evidence" for m in first)
+
+    def test_matched_absent_in_minimal(self, service: GenCCService) -> None:
+        out = service.find_curations(classification=["Refuted Evidence"], response_mode="minimal")
+        assert all("matched" not in r for r in out["results"])
+
+    def test_no_matched_without_submission_filter(self, service: GenCCService) -> None:
+        out = service.find_curations(has_conflict=True)
+        assert all("matched" not in r for r in out["results"])
+
+    def test_canonical_filters_echoed(self, service: GenCCService) -> None:
+        out = service.find_curations(classification=["definitive"])
+        assert out["filters"]["classification"] == ["Definitive"]
+
+
+class TestRowTrim:
+    def test_gene_curations_drops_gene_id_in_compact(self, service: GenCCService) -> None:
+        out = service.get_gene_curations("SKI", response_mode="compact")
+        assert out["gene"]["gene_curie"]
+        assert all("gene_curie" not in d for d in out["diseases"])
+
+    def test_gene_curations_keeps_gene_id_in_standard(self, service: GenCCService) -> None:
+        out = service.get_gene_curations("SKI", response_mode="standard")
+        assert all("gene_curie" in d for d in out["diseases"])
+
+    def test_disease_curations_drops_disease_id_in_compact(self, service: GenCCService) -> None:
+        out = service.get_disease_curations("MONDO:0008426", response_mode="compact")
+        assert out["disease"]["disease_curie"]
+        assert all("disease_curie" not in g for g in out["genes"])
