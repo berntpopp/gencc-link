@@ -88,6 +88,10 @@ class GenCCService:
         """Return build provenance (cached for the process lifetime)."""
         return self._repo.get_meta()
 
+    def distinct_moi(self) -> list[tuple[str, str | None]]:
+        """Distinct ``(moi_title, moi_curie)`` present in the data (for discovery)."""
+        return self._repo.distinct_moi()
+
     # --- search ---------------------------------------------------------
 
     def search_genes(

@@ -72,7 +72,11 @@ def register_assertion_tools(mcp: FastMCP) -> None:
             "submitter(s), mode of inheritance, gene, disease, or conflict status, "
             "with limit/offset paging. Example: classification=['Definitive'], "
             "moi='Autosomal dominant', submitter=['ClinGen']. At least one filter "
-            "is required."
+            "is required. classification/submitter/moi match at the submission "
+            "level (any submitter), not the consensus -- each row's `matched` "
+            "field names the triggering submission. Filter values are validated "
+            "(case-insensitive); out-of-vocabulary values return invalid_input "
+            "with the accepted set (see get_server_capabilities / list_submitters)."
         ),
     )
     async def find_curations(
