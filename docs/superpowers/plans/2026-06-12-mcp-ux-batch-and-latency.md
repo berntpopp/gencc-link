@@ -1077,3 +1077,22 @@ Expected: `batch count: 2 requested: 2`, a non-empty next_command, and a 16-hex 
 - **No brittle plan-plan assertions:** query-plan/perf verification is manual against the real 14k-row DB (Task 1 Step 5, Task 2 Step 5); CI tests assert correctness and index existence only (reliable on the 5-row fixture).
 - **Atomicity:** Task 1 (the highest-value fix) is independently committable and does not depend on any later task.
 ```
+
+---
+
+## Post-build addendum (what actually shipped)
+
+- **Task 1** also page-bounded the `matched` map (built only for the returned
+  page, not every match) and extracted the find helpers to
+  `gencc_link/data/find.py` (kept `repository.py` at 461 lines). Result: the
+  documented workflow dropped from ~59 ms to ~7.5 ms (target was "well under
+  3 ms"; the residual is the `matched` feature + sort over the match set, both
+  inherent — see spec §9).
+- **Task 2** shipped **three covering indexes** (not the two simple ones planned):
+  `idx_sub_classification` redefined to `(classification_title, gene_curie,
+  disease_curie)`, `idx_sub_submitter_title`, and `idx_sub_moi_nocase`. A
+  single-query JOIN alternative was measured and rejected (regressed the
+  documented workflow); a `total = len(pairs)` short-circuit replaced the planned
+  COUNT on the hot path. See spec §9.
+- Final gate: `make ci-local` green — 329 tests, mypy strict clean, lint-loc
+  ≤600, coverage 91.83%.

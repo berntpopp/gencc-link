@@ -252,3 +252,38 @@ guidance.
 Schema row-shape changes; consensus/conflict/ranking changes; code-execution/
 programmatic-tool-calling mode; `ids_only` on single-entity tools; per-call
 `capabilities_version` in `_meta`.
+
+## 9. Implementation outcome (post-build, evidence-driven deviations)
+
+Three changes from the design above were made during implementation, each driven
+by measurement against the live 2026-06-07 database (29,846 submissions; 14,131
+`gene_disease` pairs):
+
+1. **P2 became three *covering* indexes, not two simple ones.** Measurement
+   showed the bottleneck after the P1 rewrite was resolving the matching pairs
+   (`SELECT DISTINCT gene_curie, disease_curie FROM submissions WHERE …`), which
+   did table lookups for the projected columns. Covering indexes
+   (`idx_sub_classification` redefined to `(classification_title, gene_curie,
+   disease_curie)`, plus `idx_sub_submitter_title` and `idx_sub_moi_nocase` over
+   the same projection) make that an index-only scan: moi DISTINCT-pairs
+   13.3→1.9 ms, classification 3.5→1.0 ms, submitter 11.6→1.1 ms.
+
+2. **The query helpers were extracted to `gencc_link/data/find.py`.** The
+   page-bounded rewrite pushed `repository.py` to 618 lines (over the 600 cap), so
+   the find-query helpers (`submission_where`, `matching_pairs`, `matched_for_pairs`,
+   `gene_disease_page`) moved to a cohesive module; `repository.py` is now 461
+   lines.
+
+3. **A single-query JOIN form was evaluated and rejected.** Collapsing the
+   two-step (resolve pairs → `IN (VALUES …)`) into one JOIN improved broad
+   single-filter queries (moi-only 15→8 ms) but **regressed the documented
+   workflow** (triple filter 7.5→11.5 ms), because the JOIN runs the submission
+   subquery twice (COUNT + page) and a 3-filter subquery only partially uses any
+   one covering index. The documented workflow is the primary case, so the
+   two-step was kept, plus a `total = len(pairs)` short-circuit that skips the
+   COUNT query on the hot path.
+
+**Final latency (median, live DB):** documented workflow (Definitive + ClinGen +
+AD) ~7.5 ms (was ~59 ms); broad single-filter queries ~7–12 ms; gene-scoped
+queries ~0.05–0.1 ms. The pathological full scan is gone; no path is a 100–600×
+outlier anymore. No `schema_version` bump (indexes do not change results).
