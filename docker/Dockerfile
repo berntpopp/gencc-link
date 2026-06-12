@@ -38,6 +38,13 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     GENCC_LINK_TRANSPORT=unified \
     GENCC_LINK_MCP_PATH=/mcp \
     GENCC_LINK_DATA__DATA_DIR=/app/data \
+    # The entrypoint builds the database before the server starts, so the
+    # request path never triggers a lazy build. The in-app scheduler then keeps
+    # it fresh; disable it and use the cron sidecar / k8s CronJob if you prefer
+    # an external scheduler (see docs/data-lifecycle.md).
+    GENCC_LINK_DATA__AUTO_BOOTSTRAP=false \
+    GENCC_LINK_DATA__REFRESH_ENABLED=true \
+    GENCC_LINK_DATA__REFRESH_INTERVAL_HOURS=24 \
     TMPDIR=/tmp/gencc-link
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -57,21 +64,25 @@ WORKDIR /home/app/web
 
 COPY --chown=app:app ./gencc_link ./gencc_link
 COPY --chown=app:app ./server.py ./mcp_server.py ./pyproject.toml ./README.md ./
+COPY --chown=app:app ./docker/entrypoint.sh /usr/local/bin/entrypoint.sh
 
-RUN /opt/venv/bin/pip install . --no-deps
+RUN /opt/venv/bin/pip install . --no-deps && chmod +x /usr/local/bin/entrypoint.sh
 
 USER app
 
 EXPOSE 8000
 
 # The built SQLite database lives under GENCC_LINK_DATA__DATA_DIR (/app/data).
-# Mount a volume there so the ~24MB database persists across container restarts.
-# With GENCC_LINK_DATA__AUTO_BOOTSTRAP=true (default) the server downloads the
-# GenCC export and builds the database on first use if the volume is empty.
+# Mount a volume there so the ~24MB database persists across container restarts;
+# the entrypoint builds it once on startup and the in-app scheduler refreshes it.
 VOLUME ["/app/data"]
 
-HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+# start-period covers the entrypoint's first build (download + ~8s build) before
+# the server begins serving; the server itself starts in well under a second.
+HEALTHCHECK --interval=30s --timeout=10s --start-period=120s --retries=3 \
     CMD curl -f http://127.0.0.1:8000/health || exit 1
 
+# entrypoint.sh builds/refreshes the database, then exec's this CMD.
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
 # Unified transport: FastAPI on / and MCP on /mcp via a single port.
 CMD ["python", "server.py", "--transport", "unified", "--host", "0.0.0.0", "--port", "8000"]

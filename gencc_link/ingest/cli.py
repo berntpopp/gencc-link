@@ -67,20 +67,20 @@ def build() -> None:
 def refresh() -> None:
     """Conditionally refresh the database; rebuild only if the export changed."""
     config = get_data_config()
-    existed = config.db_path.exists()
     try:
-        meta = rebuild(config, force=False)
+        result = rebuild(config, force=False)
     except QuotaExceededError as exc:
         print(f"ERROR: {exc}")
         raise typer.Exit(code=1) from exc
     except DownloadError as exc:
         print(f"ERROR: download failed: {exc}")
         raise typer.Exit(code=1) from exc
-    # rebuild() returns existing meta unchanged when the source was not modified.
-    if existed and meta.build_utc is not None:
-        # A fresh build sets build_utc to "now"; reuse heuristic via run output.
-        pass
-    _print_summary(meta, header="GenCC database refreshed:")
+    if result.not_modified:
+        print(
+            f"GenCC database is up to date (source not modified; run {result.meta.gencc_run_date})."
+        )
+        return
+    _print_summary(result.meta, header="GenCC database refreshed:")
 
 
 @app.command()

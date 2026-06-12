@@ -18,11 +18,37 @@ if TYPE_CHECKING:
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
-    """Application lifespan: configure logging on startup."""
+    """Application lifespan: ensure data is present, then run the refresh scheduler.
+
+    The startup build is non-fatal: if the database cannot be built (e.g. an
+    external scheduler owns it and has not run yet), the server still starts and
+    tools report ``data_unavailable`` until data lands. The in-process scheduler
+    keeps the database fresh and hot-reloads it on change.
+    """
+    import asyncio
+
+    from gencc_link.config import get_data_config
+    from gencc_link.ingest.builder import ensure_database
+    from gencc_link.services.refresh import build_scheduler
+
     logger = configure_logging()
     logger.info("gencc-link starting", host=settings.host, port=settings.port)
-    yield
-    logger.info("gencc-link shutting down")
+
+    cfg = get_data_config()
+    try:
+        await asyncio.to_thread(ensure_database, cfg)
+    except Exception as exc:  # non-fatal: serve, report data_unavailable until ready
+        logger.warning("database not ready at startup", error=str(exc))
+
+    scheduler = build_scheduler(cfg, logger)
+    if scheduler is not None:
+        await scheduler.start()
+    try:
+        yield
+    finally:
+        if scheduler is not None:
+            await scheduler.stop()
+        logger.info("gencc-link shutting down")
 
 
 def create_app() -> FastAPI:

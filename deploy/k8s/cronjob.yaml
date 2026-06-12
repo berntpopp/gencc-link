@@ -1,0 +1,47 @@
+# Alternative: external Kubernetes CronJob owns the scheduled refresh.
+#
+# Use this instead of the in-app scheduler when you want refresh decoupled from
+# the serving pods. Requirements:
+#   - the server Deployment must set GENCC_LINK_DATA__REFRESH_ENABLED=false
+#   - the PVC must be ReadWriteMany (RWX) so the CronJob and the server pod can
+#     mount it simultaneously (e.g. NFS, CephFS, EFS). With ReadWriteOnce, prefer
+#     the in-app scheduler / initContainer pattern in deployment.yaml instead.
+# The server hot-reloads the database file the CronJob atomically swaps.
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: gencc-refresh
+spec:
+  # Weekly (GenCC updates weekly); the conditional request is a no-op (304) on
+  # unchanged weeks and costs no download quota.
+  schedule: "17 3 * * 1"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  startingDeadlineSeconds: 3600
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      activeDeadlineSeconds: 1800
+      template:
+        spec:
+          restartPolicy: Never
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 999
+            fsGroup: 999
+          containers:
+            - name: refresh
+              image: ghcr.io/berntpopp/gencc-link:latest
+              command: ["gencc-link-data", "refresh"]
+              env:
+                - { name: GENCC_LINK_DATA__DATA_DIR, value: /app/data }
+                - { name: GENCC_LINK_DATA__AUTO_BOOTSTRAP, value: "true" }
+                - { name: GENCC_LINK_LOG_FORMAT, value: json }
+              volumeMounts:
+                - { name: data, mountPath: /app/data }
+          volumes:
+            - name: data
+              persistentVolumeClaim:
+                claimName: gencc-data # must be ReadWriteMany for shared access

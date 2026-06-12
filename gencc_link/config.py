@@ -46,6 +46,35 @@ class GenCCDataConfigModel(BaseModel):
         default=True,
         description="Build the database on first use by downloading the export if absent.",
     )
+    refresh_enabled: bool = Field(
+        default=True,
+        description=(
+            "Run an in-process scheduler (unified/http transports only) that "
+            "conditionally refreshes the database on an interval. Disable when an "
+            "external scheduler (cron sidecar, k8s CronJob) owns refresh."
+        ),
+    )
+    refresh_interval_hours: float = Field(
+        default=24.0,
+        ge=1.0,
+        le=720.0,
+        description=(
+            "Hours between conditional refresh checks. GenCC updates weekly; a "
+            "daily check is quota-safe because unchanged exports return 304."
+        ),
+    )
+    refresh_jitter_seconds: int = Field(
+        default=300,
+        ge=0,
+        le=86400,
+        description="Random jitter added to each refresh to avoid thundering herds.",
+    )
+    build_lock_timeout: int = Field(
+        default=600,
+        ge=1,
+        le=3600,
+        description="Seconds to wait for the cross-process build lock before giving up.",
+    )
     cache_size: int = Field(
         default=512,
         ge=0,

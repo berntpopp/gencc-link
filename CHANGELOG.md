@@ -5,6 +5,31 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **Data lifecycle**: build the database once on container startup (idempotent
+  entrypoint running `gencc-link-data refresh`), then refresh it on a schedule.
+- **In-app refresh scheduler** (dependency-free asyncio loop, unified/http only)
+  that runs a conditional refresh every `GENCC_LINK_DATA__REFRESH_INTERVAL_HOURS`
+  (default 24) and **hot-reloads** the running server on change.
+- **Hot reload**: the read path reopens the SQLite connection when the database
+  file is atomically swapped, so any builder (in-app, cron sidecar, k8s CronJob,
+  host cron) is picked up live with no restart.
+- **Cross-process build lock** (`flock`) so concurrent builders never clobber or
+  waste download quota; `ensure_database` uses double-checked locking.
+- `rebuild` now returns a `RebuildResult` (`changed` / `not_modified`).
+- Deployment artifacts: container entrypoint, `docker-compose.cron.yml`
+  (refresh sidecar), `deploy/k8s/` (initContainer Deployment + CronJob), and
+  [`docs/data-lifecycle.md`](docs/data-lifecycle.md).
+- Refresh status surfaced in `get_gencc_diagnostics`.
+
+### Changed
+
+- Docker image builds the database in the entrypoint and sets
+  `AUTO_BOOTSTRAP=false`, so the request path never triggers a lazy build.
+
 ## [0.1.0] - 2026-06-12
 
 ### Added

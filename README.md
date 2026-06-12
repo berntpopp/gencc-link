@@ -173,10 +173,18 @@ config uses a double underscore) and an optional `.env` file. Copy
 | `GENCC_LINK_DATA__SOURCE_FORMAT` | `new` | GenCC export format (`new` \| `legacy`) |
 | `GENCC_LINK_DATA__DATA_DIR` | `<repo>/data` | Directory for the built database |
 | `GENCC_LINK_DATA__DB_FILENAME` | `gencc.sqlite` | SQLite filename in the data dir |
-| `GENCC_LINK_DATA__AUTO_BOOTSTRAP` | `true` | Build the database on first use if absent |
+| `GENCC_LINK_DATA__AUTO_BOOTSTRAP` | `true` (image: `false`) | Build the database lazily on first use if absent |
+| `GENCC_LINK_DATA__REFRESH_ENABLED` | `true` | Run the in-app conditional-refresh scheduler (unified/http only) |
+| `GENCC_LINK_DATA__REFRESH_INTERVAL_HOURS` | `24` | Hours between conditional refresh checks |
+| `GENCC_LINK_DATA__REFRESH_JITTER_SECONDS` | `300` | Random jitter added to each refresh |
+| `GENCC_LINK_DATA__BUILD_LOCK_TIMEOUT` | `600` | Seconds to wait for the cross-process build lock |
 | `GENCC_LINK_DATA__DOWNLOAD_TIMEOUT` | `120` | Download timeout (seconds) |
 | `GENCC_LINK_DATA__CACHE_SIZE` | `512` | Query cache entries (0 disables) |
 | `GENCC_LINK_DATA__CACHE_TTL` | `3600` | Query cache TTL (seconds) |
+
+See [`docs/data-lifecycle.md`](docs/data-lifecycle.md) for how the database is
+built on startup and refreshed on a schedule (in-app scheduler, cron sidecar, or
+Kubernetes CronJob).
 
 ## Development
 
@@ -206,12 +214,24 @@ make docker-logs
 make docker-down
 ```
 
-The container runs the unified server (`python server.py --transport unified`)
-as a non-root `app` user. The built ~24MB database lives in the `gencc-data`
-named volume at `/app/data`, so it persists across restarts and is downloaded
-only once. First boot may download + build the database; the health check uses a
-long start period to allow for it. See
-[`docker/README.md`](docker/README.md) for the production overlay and details.
+The container's **entrypoint builds the database once on startup** (before the
+server accepts traffic), and an **in-app scheduler** conditionally refreshes it
+every 24h and hot-reloads the running server — so first-request latency is
+predictable and the daily download quota is respected. The built ~24MB database
+lives in the `gencc-data` named volume at `/app/data` and persists across
+restarts (a restart re-uses it; the conditional request returns `304`).
+
+For a dedicated scheduler instead of the in-app loop, use the cron sidecar
+overlay:
+
+```bash
+docker compose -f docker/docker-compose.yml -f docker/docker-compose.cron.yml up -d
+```
+
+Kubernetes manifests (initContainer + in-app scheduler, or an external CronJob)
+are in [`deploy/k8s/`](deploy/k8s/). The full strategy and all scheduling options
+are documented in [`docs/data-lifecycle.md`](docs/data-lifecycle.md). See
+[`docker/README.md`](docker/README.md) for the production overlay.
 
 ## License & citation
 

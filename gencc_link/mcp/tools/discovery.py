@@ -49,7 +49,19 @@ def register_discovery_tools(mcp: FastMCP) -> None:
     )
     async def get_gencc_diagnostics() -> dict[str, Any]:
         async def call() -> dict[str, Any]:
+            from gencc_link.config import get_data_config
+            from gencc_link.services.refresh import get_active_scheduler
+
             meta = get_gencc_service().get_meta()
+            cfg = get_data_config()
+            scheduler = get_active_scheduler()
+            refresh: dict[str, Any] = {
+                "enabled": cfg.refresh_enabled,
+                "interval_hours": cfg.refresh_interval_hours,
+                "scheduler_running": scheduler is not None,
+            }
+            if scheduler is not None:
+                refresh["status"] = scheduler.status
             return {
                 "headline": (
                     f"GenCC data: {meta.row_count} submissions, {meta.gene_count} genes, "
@@ -57,6 +69,7 @@ def register_discovery_tools(mcp: FastMCP) -> None:
                     f"run date {meta.gencc_run_date or 'unknown'}."
                 ),
                 "data": meta.model_dump(),
+                "refresh": refresh,
             }
 
         return await run_mcp_tool(

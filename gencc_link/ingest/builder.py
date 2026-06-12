@@ -11,6 +11,7 @@ from __future__ import annotations
 import os
 import sqlite3
 import time
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -26,11 +27,28 @@ from gencc_link.ingest.aggregates import (
     build_submitters,
 )
 from gencc_link.ingest.downloader import DownloadResult, download_export
+from gencc_link.ingest.lock import build_lock
 from gencc_link.ingest.parser import iter_submissions
 from gencc_link.models.records import BuildMeta
 
 if TYPE_CHECKING:
     from gencc_link.config import GenCCDataConfigModel
+
+
+@dataclass
+class RebuildResult:
+    """Outcome of a conditional refresh/rebuild.
+
+    Attributes:
+        meta: Provenance for the resulting (rebuilt or already-current) database.
+        changed: True when a new database was written this call.
+        not_modified: True when the source returned 304 and the build was skipped.
+    """
+
+    meta: BuildMeta
+    changed: bool
+    not_modified: bool
+
 
 #: Insert column order for the ``submissions`` table (31 export columns + rank).
 _SUBMISSION_INSERT_COLUMNS = (*SUBMISSION_COLUMNS, "classification_rank")
@@ -224,13 +242,18 @@ def ensure_database(config: GenCCDataConfigModel) -> Path:
         return config.db_path
     if not config.auto_bootstrap:
         raise DataUnavailableError("GenCC database not built. Run `make data`.")
-    result = download_export(config)
-    _build_from_result(config, result)
+    with build_lock(config.data_dir, timeout=config.build_lock_timeout):
+        # Double-checked locking: another process may have built it while we
+        # waited for the lock.
+        if config.db_path.exists():
+            return config.db_path
+        result = download_export(config)
+        _build_from_result(config, result)
     return config.db_path
 
 
-def rebuild(config: GenCCDataConfigModel, *, force: bool) -> BuildMeta:
-    """Download (conditionally) and rebuild the database.
+def rebuild(config: GenCCDataConfigModel, *, force: bool) -> RebuildResult:
+    """Download (conditionally) and rebuild the database under the build lock.
 
     When the download reports ``not_modified`` and a database already exists, the
     existing provenance is returned without rebuilding.
@@ -240,9 +263,11 @@ def rebuild(config: GenCCDataConfigModel, *, force: bool) -> BuildMeta:
         force: When ``True``, bypass conditional caching and force a download.
 
     Returns:
-        Provenance for the resulting (rebuilt or existing) database.
+        A :class:`RebuildResult` describing whether a new build was written.
     """
-    result = download_export(config, force=force)
-    if result.not_modified and config.db_path.exists():
-        return _read_meta(config.db_path)
-    return _build_from_result(config, result)
+    with build_lock(config.data_dir, timeout=config.build_lock_timeout):
+        result = download_export(config, force=force)
+        if result.not_modified and config.db_path.exists():
+            return RebuildResult(meta=_read_meta(config.db_path), changed=False, not_modified=True)
+        meta = _build_from_result(config, result)
+    return RebuildResult(meta=meta, changed=True, not_modified=False)

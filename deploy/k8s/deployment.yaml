@@ -1,0 +1,90 @@
+# GenCC-Link on Kubernetes: build-on-startup + in-app scheduled refresh.
+#
+# This is the recommended pattern for a single deployment:
+#   - an initContainer builds the database before the server starts (predictable
+#     first-request latency)
+#   - the server's in-app scheduler refreshes it on an interval and hot-reloads
+#   - a PVC persists the ~24MB database across pod restarts (ReadWriteOnce is
+#     fine because only this pod touches the volume)
+#
+# For an external scheduler instead, see cronjob.yaml (and set
+# GENCC_LINK_DATA__REFRESH_ENABLED=false here).
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: gencc-data
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gencc-link
+  labels: { app: gencc-link }
+spec:
+  replicas: 1
+  # Recreate (not RollingUpdate): a ReadWriteOnce PVC cannot attach to two pods.
+  strategy: { type: Recreate }
+  selector:
+    matchLabels: { app: gencc-link }
+  template:
+    metadata:
+      labels: { app: gencc-link }
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 999
+        fsGroup: 999
+      initContainers:
+        # Build (or conditionally refresh) the database before the server starts.
+        - name: build-data
+          image: ghcr.io/berntpopp/gencc-link:latest
+          command: ["gencc-link-data", "refresh"]
+          env:
+            - { name: GENCC_LINK_DATA__DATA_DIR, value: /app/data }
+            - { name: GENCC_LINK_DATA__AUTO_BOOTSTRAP, value: "true" }
+          volumeMounts:
+            - { name: data, mountPath: /app/data }
+      containers:
+        - name: server
+          image: ghcr.io/berntpopp/gencc-link:latest
+          args: ["python", "server.py", "--transport", "unified", "--host", "0.0.0.0", "--port", "8000"]
+          ports:
+            - { containerPort: 8000, name: http }
+          env:
+            - { name: GENCC_LINK_HOST, value: "0.0.0.0" }
+            - { name: GENCC_LINK_DATA__DATA_DIR, value: /app/data }
+            - { name: GENCC_LINK_DATA__AUTO_BOOTSTRAP, value: "false" }
+            - { name: GENCC_LINK_DATA__REFRESH_ENABLED, value: "true" }
+            - { name: GENCC_LINK_DATA__REFRESH_INTERVAL_HOURS, value: "24" }
+            - { name: GENCC_LINK_LOG_FORMAT, value: json }
+          readinessProbe:
+            httpGet: { path: /health, port: http }
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /health, port: http }
+            initialDelaySeconds: 15
+            periodSeconds: 30
+          resources:
+            requests: { cpu: "100m", memory: "256Mi" }
+            limits: { cpu: "1", memory: "1Gi" }
+          volumeMounts:
+            - { name: data, mountPath: /app/data }
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: gencc-data
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: gencc-link
+spec:
+  selector: { app: gencc-link }
+  ports:
+    - { port: 80, targetPort: http, name: http }

@@ -11,7 +11,7 @@ from typer.testing import CliRunner
 import gencc_link.ingest.cli as cli_mod
 from gencc_link.config import GenCCDataConfigModel
 from gencc_link.exceptions import DownloadError, QuotaExceededError
-from gencc_link.ingest.builder import build_database
+from gencc_link.ingest.builder import RebuildResult, build_database
 from gencc_link.ingest.downloader import DownloadResult
 
 FIXTURES_DIR = Path(__file__).resolve().parent / "fixtures"
@@ -95,12 +95,23 @@ class TestRefresh:
         meta = build_database(temp_config, tsv_path=SAMPLE_TSV, etag="E", last_modified="LM")
 
         def fake_rebuild(config, *, force):
-            return meta
+            return RebuildResult(meta=meta, changed=True, not_modified=False)
 
         monkeypatch.setattr(cli_mod, "rebuild", fake_rebuild)
         result = runner.invoke(cli_mod.app, ["refresh"])
         assert result.exit_code == 0
         assert "refreshed" in result.stdout
+
+    def test_refresh_not_modified(self, temp_config: GenCCDataConfigModel, monkeypatch) -> None:
+        meta = build_database(temp_config, tsv_path=SAMPLE_TSV, etag="E", last_modified="LM")
+
+        def fake_rebuild(config, *, force):
+            return RebuildResult(meta=meta, changed=False, not_modified=True)
+
+        monkeypatch.setattr(cli_mod, "rebuild", fake_rebuild)
+        result = runner.invoke(cli_mod.app, ["refresh"])
+        assert result.exit_code == 0
+        assert "up to date" in result.stdout
 
     def test_refresh_quota_error(self, temp_config: GenCCDataConfigModel, monkeypatch) -> None:
         def fake_rebuild(config, *, force):

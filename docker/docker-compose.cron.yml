@@ -1,0 +1,59 @@
+name: gencc-link
+
+# Dedicated-scheduler overlay: instead of the in-app refresh loop, a separate
+# "gencc-refresh" sidecar owns the periodic conditional refresh, sharing the
+# data volume. The server hot-reloads the swapped database automatically.
+#
+# Usage:
+#   docker compose -f docker/docker-compose.yml -f docker/docker-compose.cron.yml up -d
+
+services:
+  gencc-link:
+    image: gencc-link:latest
+    environment:
+      # The sidecar owns refresh; turn off the in-app scheduler to avoid double work.
+      GENCC_LINK_DATA__REFRESH_ENABLED: "false"
+
+  gencc-refresh:
+    image: gencc-link:latest
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      target: production
+    container_name: gencc-refresh
+    depends_on:
+      - gencc-link
+    environment:
+      GENCC_LINK_DATA__DATA_DIR: /app/data
+      # The sidecar may build the database if the volume is empty.
+      GENCC_LINK_DATA__AUTO_BOOTSTRAP: "true"
+      GENCC_LINK_LOG_FORMAT: json
+      # Seconds between conditional refreshes (default daily). 304s are quota-free.
+      REFRESH_INTERVAL_SECONDS: "86400"
+    volumes:
+      - gencc-data:/app/data
+    # Bypass the server entrypoint: run a refresh loop instead of the server.
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        echo "[gencc-refresh] starting refresh loop (every ${REFRESH_INTERVAL_SECONDS}s)";
+        while true; do
+          gencc-link-data refresh || echo "[gencc-refresh] refresh failed; will retry";
+          sleep "${REFRESH_INTERVAL_SECONDS:-86400}";
+        done
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    networks:
+      - gencc-network
+
+volumes:
+  gencc-data:
+    driver: local
+
+networks:
+  gencc-network:
+    driver: bridge

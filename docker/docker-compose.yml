@@ -21,12 +21,16 @@ services:
       GENCC_LINK_MCP_PATH: /mcp
       GENCC_LINK_LOG_LEVEL: INFO
       GENCC_LINK_LOG_FORMAT: json
-      # The database is built into this directory; the named volume below keeps
-      # it across restarts so the GenCC export is only downloaded once.
+      # Data lifecycle (see docs/data-lifecycle.md):
+      #   - the entrypoint builds the database ONCE on startup before serving
+      #   - the in-app scheduler conditionally refreshes it every 24h and
+      #     hot-reloads it on change
+      # The named volume below keeps the ~24MB database across restarts so a
+      # restart re-uses it (the entrypoint's conditional request returns 304).
       GENCC_LINK_DATA__DATA_DIR: /app/data
-      GENCC_LINK_DATA__AUTO_BOOTSTRAP: "true"
-    command:
-      ["python", "server.py", "--transport", "unified", "--host", "0.0.0.0", "--port", "8000"]
+      GENCC_LINK_DATA__AUTO_BOOTSTRAP: "false"
+      GENCC_LINK_DATA__REFRESH_ENABLED: "true"
+      GENCC_LINK_DATA__REFRESH_INTERVAL_HOURS: "24"
     volumes:
       # Persist the built ~24MB SQLite database across container restarts.
       - gencc-data:/app/data
@@ -35,8 +39,9 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
-      # First boot may download + build the database; allow extra startup time.
-      start_period: 180s
+      # First boot builds the database in the entrypoint before serving; allow
+      # time for the initial download + build.
+      start_period: 150s
     restart: unless-stopped
     logging:
       driver: "json-file"

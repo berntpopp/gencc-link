@@ -202,8 +202,10 @@ class TestRebuild:
             return DownloadResult(path=export_path, etag="E", last_modified="LM")
 
         monkeypatch.setattr(builder_mod, "download_export", fake_download)
-        meta = rebuild(cfg, force=True)
-        assert meta.row_count == 31
+        result = rebuild(cfg, force=True)
+        assert result.changed is True
+        assert result.not_modified is False
+        assert result.meta.row_count == 31
 
     def test_rebuild_not_modified_returns_existing(self, monkeypatch) -> None:
         cfg = _config()
@@ -213,9 +215,11 @@ class TestRebuild:
             return DownloadResult(path=None, not_modified=True)
 
         monkeypatch.setattr(builder_mod, "download_export", fake_download)
-        meta = rebuild(cfg, force=False)
-        # Unchanged -> existing provenance reused.
-        assert meta.source_etag == "E0"
+        result = rebuild(cfg, force=False)
+        # Unchanged -> existing provenance reused, no rebuild.
+        assert result.not_modified is True
+        assert result.changed is False
+        assert result.meta.source_etag == "E0"
 
     def test_build_from_result_no_path_raises(self, monkeypatch) -> None:
         cfg = _config()
