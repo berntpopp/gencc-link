@@ -12,6 +12,7 @@ from gencc_link.mcp.next_commands import (
     after_disease_curations,
     after_diseases_curations,
     after_search_diseases,
+    cmd,
 )
 from gencc_link.mcp.schemas import (
     DISEASE_CURATIONS_SCHEMA,
@@ -47,17 +48,23 @@ def register_disease_tools(mcp: FastMCP) -> None:
         ),
     )
     async def search_diseases(
-        query: str,
+        query: str = "",
         response_mode: _MODE = "compact",
         limit: int = 20,
         offset: int = 0,
+        cursor: str | None = None,
     ) -> dict[str, Any]:
         async def call() -> dict[str, Any]:
             payload = get_gencc_service().search_diseases(
-                query, response_mode=response_mode, limit=limit, offset=offset
+                query, response_mode=response_mode, limit=limit, offset=offset, cursor=cursor
             )
             curies = [d["disease_curie"] for d in payload.get("diseases", [])]
-            payload["_meta"] = {"next_commands": after_search_diseases(curies, query)}
+            nexts: list[dict[str, Any]] = []
+            trunc = payload.get("truncated") or {}
+            if trunc.get("next_cursor"):
+                nexts.append(cmd("search_diseases", cursor=trunc["next_cursor"]))
+            nexts.extend(after_search_diseases(curies, payload.get("query", query)))
+            payload["_meta"] = {"next_commands": nexts[:5]}
             return payload
 
         return await run_mcp_tool(
@@ -80,18 +87,26 @@ def register_disease_tools(mcp: FastMCP) -> None:
         ),
     )
     async def get_disease_curations(
-        disease: str,
+        disease: str = "",
         response_mode: _MODE = "compact",
         limit: int = 50,
         offset: int = 0,
+        cursor: str | None = None,
     ) -> dict[str, Any]:
         async def call() -> dict[str, Any]:
             payload = get_gencc_service().get_disease_curations(
-                disease, response_mode=response_mode, limit=limit, offset=offset
+                disease, response_mode=response_mode, limit=limit, offset=offset, cursor=cursor
             )
             disease_arg = payload.get("disease", {}).get("disease_curie", disease)
             gene_curies = [g["gene_curie"] for g in payload.get("genes", [])]
-            payload["_meta"] = {"next_commands": after_disease_curations(disease_arg, gene_curies)}
+            nexts: list[dict[str, Any]] = []
+            trunc = payload.get("truncated") or {}
+            if trunc.get("next_cursor"):
+                nexts.append(
+                    cmd("get_disease_curations", disease=disease_arg, cursor=trunc["next_cursor"])
+                )
+            nexts.extend(after_disease_curations(disease_arg, gene_curies))
+            payload["_meta"] = {"next_commands": nexts[:5]}
             return payload
 
         return await run_mcp_tool(

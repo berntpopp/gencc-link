@@ -372,6 +372,47 @@ class TestEvalHardening:
         ids2 = {(r["gene_curie"], r["disease_curie"]) for r in d2["results"]}
         assert ids1.isdisjoint(ids2)
 
+    async def test_search_genes_pages_forward_with_cursor(self, mcp_client) -> None:
+        first = await mcp_client.call_tool("search_genes", {"query": "col", "limit": 1})
+        d1 = first.structured_content
+        assert "next_cursor" in d1["truncated"]
+        cont = d1["_meta"]["next_commands"][0]
+        assert cont["tool"] == "search_genes" and "cursor" in cont["arguments"]
+        second = await mcp_client.call_tool("search_genes", cont["arguments"])
+        d2 = second.structured_content
+        assert d2["success"] is True
+        assert {g["gene_curie"] for g in d1["genes"]}.isdisjoint(
+            {g["gene_curie"] for g in d2["genes"]}
+        )
+
+    async def test_search_diseases_pages_forward_with_cursor(self, mcp_client) -> None:
+        first = await mcp_client.call_tool("search_diseases", {"query": "syndrome", "limit": 1})
+        d1 = first.structured_content
+        assert "next_cursor" in d1["truncated"]
+        cont = d1["_meta"]["next_commands"][0]
+        assert cont["tool"] == "search_diseases" and "cursor" in cont["arguments"]
+        second = await mcp_client.call_tool("search_diseases", cont["arguments"])
+        assert second.structured_content["success"] is True
+
+    async def test_get_gene_curations_pages_forward_with_cursor(self, mcp_client) -> None:
+        first = await mcp_client.call_tool("get_gene_curations", {"gene": "COL1A1", "limit": 1})
+        d1 = first.structured_content
+        assert "next_cursor" in d1["truncated"]
+        cont = d1["_meta"]["next_commands"][0]
+        assert cont["tool"] == "get_gene_curations" and "cursor" in cont["arguments"]
+        second = await mcp_client.call_tool("get_gene_curations", cont["arguments"])
+        assert second.structured_content["success"] is True
+        assert second.structured_content["gene"]["gene_symbol"] == "COL1A1"
+
+    async def test_search_genes_stale_cursor_rejected(self, mcp_client) -> None:
+        from gencc_link.services.cursor import encode_cursor
+
+        stale = encode_cursor(release="1999-01-01", offset=1, limit=1, filters={"query": "col"})
+        result = await mcp_client.call_tool("search_genes", {"cursor": stale})
+        data = result.structured_content
+        assert data["success"] is False and data["error_code"] == "invalid_input"
+        assert data["field_errors"][0]["field"] == "cursor"
+
     async def test_invalid_response_mode_is_structured(self, mcp_client) -> None:
         result = await mcp_client.call_tool(
             "get_gene_disease_assertion",

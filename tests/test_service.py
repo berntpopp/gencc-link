@@ -423,3 +423,50 @@ class TestFindCurationsCursor:
         with pytest.raises(InvalidInputError) as exc:
             service.find_curations(cursor=stale)
         assert exc.value.field == "cursor"
+
+
+class TestCrossToolPagingCursor:
+    """Release-bound cursor paging extended to search_* and get_*_curations."""
+
+    def test_search_genes_mints_and_follows_cursor(self, service: GenCCService) -> None:
+        first = service.search_genes("col", limit=1)  # COL1A1, COL2A1 -> 2 hits
+        assert "truncated" in first and "next_cursor" in first["truncated"]
+        tok = first["truncated"]["next_cursor"]
+        second = service.search_genes("ignored-by-cursor", cursor=tok)
+        ids1 = {g["gene_curie"] for g in first["genes"]}
+        ids2 = {g["gene_curie"] for g in second["genes"]}
+        assert ids1 and ids2 and ids1.isdisjoint(ids2)
+
+    def test_search_diseases_mints_and_follows_cursor(self, service: GenCCService) -> None:
+        first = service.search_diseases("syndrome", limit=1)
+        assert "truncated" in first and "next_cursor" in first["truncated"]
+        tok = first["truncated"]["next_cursor"]
+        second = service.search_diseases("ignored", cursor=tok)
+        ids1 = {d["disease_curie"] for d in first["diseases"]}
+        ids2 = {d["disease_curie"] for d in second["diseases"]}
+        assert ids1 and ids2 and ids1.isdisjoint(ids2)
+
+    def test_gene_curations_mints_and_follows_cursor(self, service: GenCCService) -> None:
+        first = service.get_gene_curations("COL1A1", limit=1)  # 3 diseases -> pages
+        assert "truncated" in first and "next_cursor" in first["truncated"]
+        tok = first["truncated"]["next_cursor"]
+        second = service.get_gene_curations("ignored", cursor=tok)
+        assert second["count"] >= 1
+        assert second["gene"]["gene_symbol"] == "COL1A1"  # restored from the cursor
+
+    def test_paging_cursor_rejects_stale_release(self, service: GenCCService) -> None:
+        from gencc_link.services.cursor import encode_cursor
+
+        stale = encode_cursor(release="1999-01-01", offset=1, limit=1, filters={"query": "col"})
+        with pytest.raises(InvalidInputError):
+            service.search_genes("col", cursor=stale)
+        stale_g = encode_cursor(
+            release="1999-01-01", offset=1, limit=1, filters={"gene": "HGNC:2197"}
+        )
+        with pytest.raises(InvalidInputError):
+            service.get_gene_curations("COL1A1", cursor=stale_g)
+        stale_d = encode_cursor(
+            release="1999-01-01", offset=1, limit=1, filters={"disease": "MONDO:0008426"}
+        )
+        with pytest.raises(InvalidInputError):
+            service.get_disease_curations("MONDO:0008426", cursor=stale_d)

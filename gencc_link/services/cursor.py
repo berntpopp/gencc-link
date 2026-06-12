@@ -44,3 +44,22 @@ def decode_cursor(token: str) -> dict[str, Any]:
     if not isinstance(payload.get("flt"), dict):
         raise ValueError("cursor filters invalid")
     return payload
+
+
+def decode_paged_cursor(token: str, *, current_release: str | None) -> dict[str, Any]:
+    """Decode a page cursor and reject one minted against a stale data release.
+
+    The single decode + stale-reject helper shared by every paged tool
+    (find_curations, search_genes/diseases, get_gene/disease_curations). Returns
+    the decoded payload (``{"v","r","o","lim","flt"}``). Raises ``ValueError`` on
+    malformation/version mismatch (via :func:`decode_cursor`) or when the
+    cursor's release no longer matches ``current_release`` -- the refresh-safe
+    guarantee that a weekly data refresh can't silently skip or duplicate rows.
+    """
+    payload = decode_cursor(token)
+    if payload["r"] != current_release:
+        raise ValueError(
+            f"Cursor was minted against GenCC release {payload['r']!r} but the "
+            f"current release is {current_release!r}; restart the sweep."
+        )
+    return payload

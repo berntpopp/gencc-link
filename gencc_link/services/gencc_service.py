@@ -15,7 +15,7 @@ from gencc_link.exceptions import AmbiguousQueryError, InvalidInputError, NotFou
 from gencc_link.models import BuildMeta
 from gencc_link.models.enums import RESPONSE_MODES, ResponseMode
 from gencc_link.services import shaping
-from gencc_link.services.cursor import decode_cursor
+from gencc_link.services.cursor import decode_paged_cursor
 from gencc_link.services.filters import validate_find_filters
 
 _MAX_LIMIT = 200
@@ -86,6 +86,34 @@ class GenCCService:
             raise InvalidInputError("offset must be >= 0.", field="offset")
         return offset
 
+    def _decode_cursor(self, cursor: str) -> dict[str, Any]:
+        """Decode a page cursor, surfacing a stale/malformed cursor as invalid_input."""
+        try:
+            return decode_paged_cursor(cursor, current_release=self.get_meta().gencc_run_date)
+        except ValueError as exc:
+            raise InvalidInputError(str(exc), field="cursor") from exc
+
+    def _cursor_ctx(self, filters: dict[str, Any]) -> dict[str, Any]:
+        """Release-bound cursor context for ``truncation_block`` (refresh-safe paging)."""
+        return {"release": self.get_meta().gencc_run_date, "filters": filters}
+
+    def _restore_cursor(
+        self, cursor: str, key: str, default_value: str, default_mode: str
+    ) -> tuple[str, str, int, int]:
+        """Restore (value-for-``key``, response_mode, limit, offset) from a page cursor.
+
+        Shared by the single-key paged tools: ``search_*`` carry ``key='query'``;
+        ``get_*_curations`` carry ``key='gene'`` / ``'disease'`` (the resolved curie).
+        """
+        cur = self._decode_cursor(cursor)
+        flt = cur["flt"]
+        return (
+            flt.get(key, default_value),
+            flt.get("response_mode", default_mode),
+            cur["lim"],
+            cur["o"],
+        )
+
     def get_meta(self) -> BuildMeta:
         """Return build provenance (cached for the process lifetime)."""
         return self._repo.get_meta()
@@ -97,8 +125,18 @@ class GenCCService:
     # --- search ---------------------------------------------------------
 
     def search_genes(
-        self, query: str, *, response_mode: str = "compact", limit: int = 20, offset: int = 0
+        self,
+        query: str,
+        *,
+        response_mode: str = "compact",
+        limit: int = 20,
+        offset: int = 0,
+        cursor: str | None = None,
     ) -> dict[str, Any]:
+        if cursor is not None:
+            query, response_mode, limit, offset = self._restore_cursor(
+                cursor, "query", query, response_mode
+            )
         mode = self._validate_mode(response_mode)
         if not query or not query.strip():
             raise InvalidInputError("query must not be empty.", field="query")
@@ -118,15 +156,30 @@ class GenCCService:
         }
         if hits:
             payload["headline"] = shaping.genes_search_headline(query.strip(), hits, total)
-        trunc = shaping.truncation_block(total, limit, offset)
+        trunc = shaping.truncation_block(
+            total,
+            limit,
+            offset,
+            cursor_context=self._cursor_ctx({"query": query.strip(), "response_mode": mode}),
+        )
         if trunc:
             payload["truncated"] = trunc
         self._cache.put(key, payload)
         return payload
 
     def search_diseases(
-        self, query: str, *, response_mode: str = "compact", limit: int = 20, offset: int = 0
+        self,
+        query: str,
+        *,
+        response_mode: str = "compact",
+        limit: int = 20,
+        offset: int = 0,
+        cursor: str | None = None,
     ) -> dict[str, Any]:
+        if cursor is not None:
+            query, response_mode, limit, offset = self._restore_cursor(
+                cursor, "query", query, response_mode
+            )
         mode = self._validate_mode(response_mode)
         if not query or not query.strip():
             raise InvalidInputError("query must not be empty.", field="query")
@@ -146,7 +199,12 @@ class GenCCService:
         }
         if hits:
             payload["headline"] = shaping.diseases_search_headline(query.strip(), hits, total)
-        trunc = shaping.truncation_block(total, limit, offset)
+        trunc = shaping.truncation_block(
+            total,
+            limit,
+            offset,
+            cursor_context=self._cursor_ctx({"query": query.strip(), "response_mode": mode}),
+        )
         if trunc:
             payload["truncated"] = trunc
         self._cache.put(key, payload)
@@ -155,8 +213,18 @@ class GenCCService:
     # --- curations ------------------------------------------------------
 
     def get_gene_curations(
-        self, gene: str, *, response_mode: str = "compact", limit: int = 50, offset: int = 0
+        self,
+        gene: str,
+        *,
+        response_mode: str = "compact",
+        limit: int = 50,
+        offset: int = 0,
+        cursor: str | None = None,
     ) -> dict[str, Any]:
+        if cursor is not None:
+            gene, response_mode, limit, offset = self._restore_cursor(
+                cursor, "gene", gene, response_mode
+            )
         mode = self._validate_mode(response_mode)
         if not gene or not gene.strip():
             raise InvalidInputError("gene must not be empty.", field="gene")
@@ -179,14 +247,29 @@ class GenCCService:
             "total": total,
             "diseases": [shaping.assertion_dict(a, mode, omit_gene=True) for a in page],
         }
-        trunc = shaping.truncation_block(total, limit, offset)
+        trunc = shaping.truncation_block(
+            total,
+            limit,
+            offset,
+            cursor_context=self._cursor_ctx({"gene": summary.gene_curie, "response_mode": mode}),
+        )
         if trunc:
             payload["truncated"] = trunc
         return payload
 
     def get_disease_curations(
-        self, disease: str, *, response_mode: str = "compact", limit: int = 50, offset: int = 0
+        self,
+        disease: str,
+        *,
+        response_mode: str = "compact",
+        limit: int = 50,
+        offset: int = 0,
+        cursor: str | None = None,
     ) -> dict[str, Any]:
+        if cursor is not None:
+            disease, response_mode, limit, offset = self._restore_cursor(
+                cursor, "disease", disease, response_mode
+            )
         mode = self._validate_mode(response_mode)
         if not disease or not disease.strip():
             raise InvalidInputError("disease must not be empty.", field="disease")
@@ -209,7 +292,14 @@ class GenCCService:
             "total": total,
             "genes": [shaping.assertion_dict(a, mode, omit_disease=True) for a in page],
         }
-        trunc = shaping.truncation_block(total, limit, offset)
+        trunc = shaping.truncation_block(
+            total,
+            limit,
+            offset,
+            cursor_context=self._cursor_ctx(
+                {"disease": summary.disease_curie, "response_mode": mode}
+            ),
+        )
         if trunc:
             payload["truncated"] = trunc
         return payload
@@ -374,17 +464,7 @@ class GenCCService:
         cursor: str | None = None,
     ) -> dict[str, Any]:
         if cursor is not None:
-            try:
-                cur = decode_cursor(cursor)
-            except ValueError as exc:
-                raise InvalidInputError(str(exc), field="cursor") from exc
-            current_release = self.get_meta().gencc_run_date
-            if cur["r"] != current_release:
-                raise InvalidInputError(
-                    f"Cursor was minted against GenCC release {cur['r']!r} but the "
-                    f"current release is {current_release!r}; restart the sweep.",
-                    field="cursor",
-                )
+            cur = self._decode_cursor(cursor)
             flt = cur["flt"]
             gene = flt.get("gene")
             disease = flt.get("disease")
