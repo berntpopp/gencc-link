@@ -71,18 +71,32 @@ def _submitter_dict(s: Any, mode: ResponseMode) -> dict[str, Any]:
     return base
 
 
-def assertion_dict(a: GeneDiseaseAssertion, mode: ResponseMode) -> dict[str, Any]:
-    """Shape an aggregated gene-disease assertion per response_mode."""
-    out: dict[str, Any] = {
-        "gene_curie": a.gene_curie,
-        "gene_symbol": a.gene_symbol,
-        "disease_curie": a.disease_curie,
-        "disease_title": a.disease_title,
-        "consensus_classification": a.consensus_classification,
-        "n_submitters": a.n_submitters,
-        "n_submissions": a.n_submissions,
-        "has_conflict": a.has_conflict,
-    }
+def assertion_dict(
+    a: GeneDiseaseAssertion,
+    mode: ResponseMode,
+    *,
+    omit_gene: bool = False,
+    omit_disease: bool = False,
+) -> dict[str, Any]:
+    """Shape an aggregated gene-disease assertion per response_mode.
+
+    ``omit_gene``/``omit_disease`` drop the parent identifier from rows whose
+    parent object already carries it (e.g. the gene in ``get_gene_curations``),
+    but only in ``minimal``/``compact`` where per-row redundancy dominates the
+    payload; ``standard``/``full`` rows keep both so they stay self-describing.
+    """
+    trim = mode in ("minimal", "compact")
+    out: dict[str, Any] = {}
+    if not (omit_gene and trim):
+        out["gene_curie"] = a.gene_curie
+        out["gene_symbol"] = a.gene_symbol
+    if not (omit_disease and trim):
+        out["disease_curie"] = a.disease_curie
+        out["disease_title"] = a.disease_title
+    out["consensus_classification"] = a.consensus_classification
+    out["n_submitters"] = a.n_submitters
+    out["n_submissions"] = a.n_submissions
+    out["has_conflict"] = a.has_conflict
     if mode == "minimal":
         return out
 

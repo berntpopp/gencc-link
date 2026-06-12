@@ -50,7 +50,13 @@ GENCC_REFERENCE_NOTES = (
     "upstream_unavailable, rate_limited, internal_error. Errors carry retryable "
     "+ recovery_action. Disease ids are harmonized to MONDO; OMIM disease names "
     "are restricted by licensing and may be absent. Identifiers: gene_curie is "
-    "HGNC (e.g. HGNC:10896); disease_curie is MONDO (e.g. MONDO:0008426)."
+    "HGNC (e.g. HGNC:10896); disease_curie is MONDO (e.g. MONDO:0008426). "
+    "find_curations classification/submitter/moi filters match at the submission "
+    "level (any submitter), not the consensus; each result row's matched field "
+    "names the triggering submission. Out-of-vocabulary filter values return "
+    "invalid_input with the accepted set (matching is case-insensitive). Some "
+    "passthrough fields are verbatim from submitters: assertion_criteria_url may "
+    "be non-URL; submitted_as_date mixes formats; the pmids array is normalised."
 )
 
 GENCC_LICENSE_NOTE = (

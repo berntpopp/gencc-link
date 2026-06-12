@@ -62,7 +62,14 @@ def register_discovery_tools(mcp: FastMCP) -> None:
             }
             if scheduler is not None:
                 refresh["status"] = scheduler.status
-            return {
+            quota: dict[str, Any] | None
+            try:
+                from gencc_link.ingest.downloader import download_quota_status
+
+                quota = download_quota_status(cfg)
+            except Exception:  # quota is observability-only; never break diagnostics
+                quota = None
+            result: dict[str, Any] = {
                 "headline": (
                     f"GenCC data: {meta.row_count} submissions, {meta.gene_count} genes, "
                     f"{meta.disease_count} diseases from {meta.submitter_count} submitters; "
@@ -71,6 +78,9 @@ def register_discovery_tools(mcp: FastMCP) -> None:
                 "data": meta.model_dump(),
                 "refresh": refresh,
             }
+            if quota is not None:
+                result["quota"] = quota
+            return result
 
         return await run_mcp_tool(
             "get_gencc_diagnostics", call, context=McpErrorContext("get_gencc_diagnostics")

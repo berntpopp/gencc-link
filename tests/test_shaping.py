@@ -264,3 +264,24 @@ class TestTruncationBlock:
         block = shaping.truncation_block(total, limit, offset)
         assert block is not None
         assert block["next_offset"] == offset + limit
+
+
+class TestOmitParentId:
+    def test_omit_gene_compact_drops_gene_keeps_disease(self) -> None:
+        out = shaping.assertion_dict(_assertion(), "compact", omit_gene=True)
+        assert "gene_curie" not in out and "gene_symbol" not in out
+        assert out["disease_curie"]
+
+    def test_omit_disease_compact_drops_disease_keeps_gene(self) -> None:
+        out = shaping.assertion_dict(_assertion(), "compact", omit_disease=True)
+        assert "disease_curie" not in out and "disease_title" not in out
+        assert out["gene_curie"]
+
+    def test_omit_gene_minimal(self) -> None:
+        out = shaping.assertion_dict(_assertion(), "minimal", omit_gene=True)
+        assert "gene_curie" not in out
+        assert out["consensus_classification"]
+
+    def test_omit_ignored_in_standard(self) -> None:
+        out = shaping.assertion_dict(_assertion(), "standard", omit_gene=True)
+        assert out["gene_curie"] == "HGNC:4296"

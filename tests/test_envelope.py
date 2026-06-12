@@ -141,3 +141,78 @@ class TestSetDataRelease:
 
         out = await run_mcp_tool("t", body)
         assert "gencc_release" not in out["_meta"]
+
+
+class TestObservability:
+    async def test_meta_has_request_id_and_timing(self) -> None:
+        async def body() -> dict[str, Any]:
+            return {}
+
+        out = await run_mcp_tool("t", body)
+        assert isinstance(out["_meta"]["request_id"], str)
+        assert len(out["_meta"]["request_id"]) >= 8
+        assert isinstance(out["_meta"]["elapsed_ms"], (int, float))
+        assert out["_meta"]["elapsed_ms"] >= 0
+
+    async def test_error_meta_has_request_id_and_timing(self) -> None:
+        out = await run_mcp_tool("t", _raiser(NotFoundError("x")))
+        assert "request_id" in out["_meta"]
+        assert isinstance(out["_meta"]["elapsed_ms"], (int, float))
+
+
+class TestCitationByMode:
+    async def test_compact_uses_citation_ref(self) -> None:
+        async def body() -> dict[str, Any]:
+            return {}
+
+        out = await run_mcp_tool("t", body, response_mode="compact")
+        assert out["_meta"]["citation_ref"] == "gencc://citation"
+        assert "recommended_citation" not in out["_meta"]
+        assert out["_meta"]["response_mode"] == "compact"
+
+    async def test_minimal_uses_citation_ref(self) -> None:
+        async def body() -> dict[str, Any]:
+            return {}
+
+        out = await run_mcp_tool("t", body, response_mode="minimal")
+        assert out["_meta"]["citation_ref"] == "gencc://citation"
+
+    async def test_full_uses_full_citation(self) -> None:
+        async def body() -> dict[str, Any]:
+            return {}
+
+        out = await run_mcp_tool("t", body, response_mode="full")
+        assert out["_meta"]["recommended_citation"]
+        assert "citation_ref" not in out["_meta"]
+
+    async def test_no_mode_keeps_full_citation(self) -> None:
+        async def body() -> dict[str, Any]:
+            return {}
+
+        out = await run_mcp_tool("t", body)
+        assert out["_meta"]["recommended_citation"]
+        assert "response_mode" not in out["_meta"]
+
+
+class TestErrorNextCommands:
+    async def test_not_found_recovery(self) -> None:
+        out = await run_mcp_tool(
+            "get_gene_curations",
+            _raiser(NotFoundError("nope")),
+            context=McpErrorContext("get_gene_curations", arguments={"gene": "ZZZ"}),
+        )
+        assert out["_meta"]["next_commands"] == [
+            {"tool": "search_genes", "arguments": {"query": "ZZZ"}}
+        ]
+
+    async def test_invalid_submitter_recovery(self) -> None:
+        out = await run_mcp_tool(
+            "find_curations",
+            _raiser(InvalidInputError("bad", field="submitter")),
+            context=McpErrorContext("find_curations", arguments={}),
+        )
+        assert out["_meta"]["next_commands"][0]["tool"] == "list_submitters"
+
+    async def test_no_recovery_omits_next_commands(self) -> None:
+        out = await run_mcp_tool("t", _raiser(RuntimeError("boom")))
+        assert "next_commands" not in out["_meta"]

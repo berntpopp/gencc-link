@@ -56,7 +56,10 @@ def register_assertion_tools(mcp: FastMCP) -> None:
         return await run_mcp_tool(
             "get_gene_disease_assertion",
             call,
-            context=McpErrorContext("get_gene_disease_assertion"),
+            context=McpErrorContext(
+                "get_gene_disease_assertion", arguments={"gene": gene, "disease": disease}
+            ),
+            response_mode=response_mode,
         )
 
     @mcp.tool(
@@ -69,7 +72,11 @@ def register_assertion_tools(mcp: FastMCP) -> None:
             "submitter(s), mode of inheritance, gene, disease, or conflict status, "
             "with limit/offset paging. Example: classification=['Definitive'], "
             "moi='Autosomal dominant', submitter=['ClinGen']. At least one filter "
-            "is required."
+            "is required. classification/submitter/moi match at the submission "
+            "level (any submitter), not the consensus -- each row's `matched` "
+            "field names the triggering submission. Filter values are validated "
+            "(case-insensitive); out-of-vocabulary values return invalid_input "
+            "with the accepted set (see get_server_capabilities / list_submitters)."
         ),
     )
     async def find_curations(
@@ -109,7 +116,12 @@ def register_assertion_tools(mcp: FastMCP) -> None:
             payload["_meta"] = {"next_commands": nexts}
             return payload
 
-        return await run_mcp_tool("find_curations", call, context=McpErrorContext("find_curations"))
+        return await run_mcp_tool(
+            "find_curations",
+            call,
+            context=McpErrorContext("find_curations", arguments={}),
+            response_mode=response_mode,
+        )
 
     @mcp.tool(
         name="resolve_identifier",
@@ -136,5 +148,7 @@ def register_assertion_tools(mcp: FastMCP) -> None:
             return payload
 
         return await run_mcp_tool(
-            "resolve_identifier", call, context=McpErrorContext("resolve_identifier")
+            "resolve_identifier",
+            call,
+            context=McpErrorContext("resolve_identifier", arguments={"query": query}),
         )

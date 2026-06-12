@@ -72,8 +72,17 @@ class GenCCRepositoryProtocol(Protocol):
         has_conflict: bool | None = None,
         limit: int,
         offset: int,
-    ) -> tuple[list[GeneDiseaseAssertion], int]:
-        """Filter aggregated gene-disease assertions. Returns (page, total)."""
+    ) -> tuple[list[GeneDiseaseAssertion], int, dict[tuple[str, str], list[dict[str, str | None]]]]:
+        """Filter assertions. Returns (page, total, matched_by_pair).
+
+        ``matched_by_pair`` maps each ``(gene_curie, disease_curie)`` to the
+        distinct submissions that satisfied a submission-level filter; empty when
+        no ``classification``/``submitter``/``moi`` filter is active.
+        """
+        ...
+
+    def distinct_moi(self) -> list[tuple[str, str | None]]:
+        """Distinct ``(moi_title, moi_curie)`` present in the submissions table."""
         ...
 
     def list_submitters(self) -> list[SubmitterSummary]:

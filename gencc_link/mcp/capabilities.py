@@ -75,7 +75,10 @@ def _static_surface() -> dict[str, Any]:
             "gene": "HGNC CURIE (HGNC:10896) or approved symbol (SKI); resolved exactly",
             "disease": "MONDO CURIE (MONDO:0008426), OMIM CURIE, or harmonized title",
             "classification": "one or more of the classification titles (see `classifications`)",
-            "submitter": "submitter title (e.g. ClinGen) or GenCC submitter CURIE",
+            "submitter": "submitter title (e.g. ClinGen) or GenCC submitter CURIE; "
+            "validated against the live roster (see list_submitters)",
+            "moi": "mode-of-inheritance title; data-derived and validated "
+            "(see inheritance_modes). Out-of-vocabulary values return invalid_input.",
             "response_mode": "minimal | compact | standard | full (default compact)",
         },
         "error_codes": [
@@ -95,8 +98,16 @@ def _static_surface() -> dict[str, Any]:
         },
         "response_fields": {
             "headline": "one-line plain-English answer at the top of each payload",
-            "next_commands": "_meta.next_commands: ready-to-call {tool, arguments} next steps",
-            "recommended_citation": "_meta.recommended_citation: paste verbatim",
+            "next_commands": "_meta.next_commands: ready-to-call {tool, arguments} next steps "
+            "(on success AND error envelopes)",
+            "recommended_citation": "_meta.recommended_citation: paste verbatim "
+            "(standard/full); minimal/compact emit _meta.citation_ref instead",
+            "citation_ref": "_meta.citation_ref: 'gencc://citation' in minimal/compact; "
+            "dereference once and cache",
+            "request_id": "_meta.request_id + _meta.elapsed_ms: per-call trace id and "
+            "server-side timing on every envelope",
+            "matched": "find_curations: the submission(s) that satisfied a submission-level "
+            "classification/submitter/moi filter (compact/standard/full)",
             "has_conflict": "true when supporting and against assertions coexist for a pair",
         },
         "resources": {
@@ -122,10 +133,37 @@ def capabilities_version() -> str:
 
 
 def build_capabilities() -> dict[str, Any]:
-    """Return the capabilities document, including live data freshness if built."""
+    """Return the capabilities document, including live data freshness if built.
+
+    ``inheritance_modes`` and ``data_notes`` are data-derived and live outside the
+    hashed static surface, so they never perturb ``capabilities_version``.
+    """
     surface = dict(_static_surface())
     surface["data"] = _data_status()
+    surface["inheritance_modes"] = _inheritance_modes()
+    surface["data_notes"] = [
+        "Some submitter fields pass through verbatim: assertion_criteria_url may hold "
+        "non-URL text (e.g. 'PMID: 28106320'); submitted_as_date mixes formats "
+        "(e.g. '2018-03-30 13:31:56' vs ISO 8601 '2024-07-23T00:00:00.000000Z').",
+        "The structured pmids array is normalised and can correct malformed PMIDs in "
+        "the raw submitter notes text.",
+        "find_curations classification/submitter/moi match at the submission level "
+        "(any submitter), not the consensus; each result row's `matched` field names "
+        "the triggering submission(s).",
+    ]
     return surface
+
+
+def _inheritance_modes() -> list[dict[str, Any]]:
+    """Data-derived mode-of-inheritance vocabulary; empty when data is unavailable."""
+    try:
+        from gencc_link.mcp.service_adapters import get_gencc_service
+
+        return [
+            {"title": title, "curie": curie} for title, curie in get_gencc_service().distinct_moi()
+        ]
+    except Exception:  # data not built yet or unreadable
+        return []
 
 
 def _data_status() -> dict[str, Any]:

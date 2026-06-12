@@ -47,11 +47,14 @@ def register_disease_tools(mcp: FastMCP) -> None:
                 query, response_mode=response_mode, limit=limit, offset=offset
             )
             curies = [d["disease_curie"] for d in payload.get("diseases", [])]
-            payload["_meta"] = {"next_commands": after_search_diseases(curies)}
+            payload["_meta"] = {"next_commands": after_search_diseases(curies, query)}
             return payload
 
         return await run_mcp_tool(
-            "search_diseases", call, context=McpErrorContext("search_diseases")
+            "search_diseases",
+            call,
+            context=McpErrorContext("search_diseases", arguments={"query": query}),
+            response_mode=response_mode,
         )
 
     @mcp.tool(
@@ -81,5 +84,8 @@ def register_disease_tools(mcp: FastMCP) -> None:
             return payload
 
         return await run_mcp_tool(
-            "get_disease_curations", call, context=McpErrorContext("get_disease_curations")
+            "get_disease_curations",
+            call,
+            context=McpErrorContext("get_disease_curations", arguments={"disease": disease}),
+            response_mode=response_mode,
         )

@@ -10,12 +10,13 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING
 
 import httpx
 
-from gencc_link.constants import DOWNLOAD_URLS
+from gencc_link.constants import DOWNLOAD_DAILY_QUOTA, DOWNLOAD_URLS
 from gencc_link.exceptions import DownloadError, QuotaExceededError
 
 if TYPE_CHECKING:
@@ -105,6 +106,62 @@ def _write_cache(
             data = {}
     data[_export_url(config)] = {"etag": etag, "last_modified": last_modified}
     cache_path.write_text(json.dumps(data, indent=2), encoding="utf-8")
+
+
+def _today_utc() -> str:
+    """Current UTC calendar date as ``YYYY-MM-DD`` (the quota reset boundary)."""
+    return datetime.now(UTC).strftime("%Y-%m-%d")
+
+
+def _load_cache_dict(config: GenCCDataConfigModel) -> dict[str, object]:
+    """Read the whole download-cache JSON object, or an empty dict if unreadable."""
+    cache_path = _cache_path(config)
+    if not cache_path.exists():
+        return {}
+    try:
+        loaded = json.loads(cache_path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        return {}
+    return loaded if isinstance(loaded, dict) else {}
+
+
+def _bump_download_count(config: GenCCDataConfigModel) -> None:
+    """Increment today's real-download counter in the shared cache file.
+
+    Only actual body transfers count toward the GenCC per-IP daily quota; ``304``
+    and ``HEAD`` are exempt and never call this.
+    """
+    data = _load_cache_dict(config)
+    today = _today_utc()
+    rec = data.get("downloads")
+    count = 0
+    if isinstance(rec, dict) and rec.get("date") == today:
+        raw = rec.get("count", 0)
+        count = raw if isinstance(raw, int) else 0
+    data["downloads"] = {"date": today, "count": count + 1}
+    _cache_path(config).write_text(json.dumps(data, indent=2), encoding="utf-8")
+
+
+def download_quota_status(config: GenCCDataConfigModel) -> dict[str, object]:
+    """Return today's real-download usage against the per-IP daily quota.
+
+    Reads the shared cache file (so the running MCP server sees counts written by
+    the ingest CLI). Same-day reset: a stored date other than today reports zero.
+    """
+    rec = _load_cache_dict(config).get("downloads")
+    today = _today_utc()
+    used = 0
+    if isinstance(rec, dict) and rec.get("date") == today:
+        try:
+            used = int(rec.get("count", 0))
+        except (TypeError, ValueError):
+            used = 0
+    return {
+        "date": today,
+        "used_today": used,
+        "daily_quota": DOWNLOAD_DAILY_QUOTA,
+        "remaining": max(0, DOWNLOAD_DAILY_QUOTA - used),
+    }
 
 
 def _headers(config: GenCCDataConfigModel) -> dict[str, str]:
@@ -226,6 +283,7 @@ def download_export(
         raise DownloadError(f"GET {url} failed: {exc}") from exc
 
     _write_cache(config, etag=etag, last_modified=last_modified)
+    _bump_download_count(config)
     return DownloadResult(
         path=export_path,
         etag=etag,
