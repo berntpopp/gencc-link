@@ -117,6 +117,13 @@ class TestEvalAdditions:
         caps = build_capabilities()
         assert "moi" in caps["parameter_conventions"]
 
+    def test_canonical_gene_args_documented(self) -> None:
+        caps = build_capabilities()
+        conv = caps["parameter_conventions"]
+        assert "gene_symbol" in conv
+        assert "hgnc_id" in conv
+        assert "gene" not in conv  # the polymorphic arg is gone post-split
+
     def test_response_fields_document_new_fields(self) -> None:
         caps = build_capabilities()
         for field in (

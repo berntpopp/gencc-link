@@ -88,7 +88,8 @@ def _static_surface() -> dict[str, Any]:
             "resolve_identifier": "n/a",
         },
         "recommended_workflows": [
-            "gene symbol -> search_genes -> get_gene_curations -> get_gene_disease_assertion",
+            "gene symbol -> search_genes -> get_gene_curations(gene_symbol=...) -> "
+            "get_gene_disease_assertion(gene_symbol=..., disease=...)",
             "disease text -> search_diseases -> get_disease_curations",
             "Definitive AD genes from ClinGen -> find_curations(classification=['Definitive'], "
             "moi='Autosomal dominant', submitter=['ClinGen'])",
@@ -96,9 +97,13 @@ def _static_surface() -> dict[str, Any]:
             "multiple diseases -> get_diseases_curations(diseases=[...])",
         ],
         "parameter_conventions": {
-            "gene": "HGNC CURIE (HGNC:10896) or approved symbol (SKI); resolved exactly",
+            "gene_symbol": "approved gene symbol (SKI); exact match. Fleet-canonical; "
+            "mutually exclusive with hgnc_id (pass exactly one to gene tools)",
+            "hgnc_id": "HGNC CURIE (HGNC:10896); exact match. Fleet-canonical; "
+            "mutually exclusive with gene_symbol",
             "disease": "MONDO CURIE (MONDO:0008426), OMIM CURIE, or harmonized title",
-            "genes": "list of gene symbols or HGNC ids (max 20); batch form of `gene`",
+            "genes": "list of gene symbols or HGNC CURIEs (max 20); batch form "
+            "(polymorphic -- no fleet-canon plural exists)",
             "diseases": "list of disease ids or titles (max 20); batch form of `disease`",
             "classification": "one or more of the classification titles (see `classifications`)",
             "submitter": "submitter title (e.g. ClinGen) or GenCC submitter CURIE; "
