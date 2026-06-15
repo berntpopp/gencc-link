@@ -153,6 +153,29 @@ Tools whose payloads vary accept `response_mode`: `minimal` | `compact`
 (default) | `standard` | `full`. See [`docs/usage.md`](docs/usage.md) for the
 canonical workflows and the citation contract.
 
+## GeneFoundry federation
+
+GenCC-Link is part of the **GeneFoundry** `*-link` MCP fleet, federated behind the
+[`genefoundry-router`](https://github.com/berntpopp/genefoundry-router) gateway. It
+follows **Tool-Naming & Normalization Standard v1**:
+
+- **`serverInfo.name`:** `gencc-link` (stable identity, set on the FastMCP
+  instance).
+- **Gateway namespace token:** `gencc`. The router mounts this server with
+  `namespace="gencc"`, so its tools surface at the gateway as `gencc_<tool>` (e.g.
+  `gencc_search_genes`). Standalone MCP clients namespace it as
+  `mcp__gencc-link__<tool>`.
+- **Unprefixed leaves:** tool names are intentionally **not** server-prefixed —
+  namespacing is the gateway's job (Rule 1), so a leaf prefix would double-prefix
+  at the gateway. A CI guard
+  ([`tests/test_tool_naming.py`](tests/test_tool_naming.py)) enforces
+  `^[a-z0-9_]{1,50}$` + a canonical verb (`get`/`search`/`list`/`resolve`/`find`/
+  `compare`/`compute`) + a domain tag on every registered tool.
+- **Canonical arguments:** `gene_symbol` (approved symbol) / `hgnc_id` (HGNC
+  CURIE) — pass exactly one to a single-gene tool; `disease` (MONDO/OMIM CURIE or
+  title); `response_mode`; `limit`/`offset`. The batch `get_genes_curations` keeps
+  a polymorphic `genes` list (symbols or HGNC CURIEs).
+
 ## Architecture
 
 GenCC is small, slow-changing bulk data with no live API, so GenCC-Link builds a
