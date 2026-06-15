@@ -28,11 +28,12 @@ counts. If it reports the database is unavailable, run `make data` (or
    genes with an assertion summary (number of diseases, top classification).
    For an exact symbol-to-id or id-to-symbol map without ranking, use
    `resolve_identifier`.
-2. **List the gene's assertions.** `get_gene_curations` returns every
-   gene-disease assertion for the gene, grouped by disease, each with the
-   `strongest_classification` (highest-rank across submitters) and a conflict flag.
-3. **Drill into one pair.** `get_gene_disease_assertion` takes a gene + disease
-   and returns every submitter's classification, mode of inheritance, PMIDs,
+2. **List the gene's assertions.** `get_gene_curations` (identify the gene with
+   `gene_symbol` **or** `hgnc_id`) returns every gene-disease assertion for the
+   gene, grouped by disease, each with the `strongest_classification`
+   (highest-rank across submitters) and a conflict flag.
+3. **Drill into one pair.** `get_gene_disease_assertion` takes `gene_symbol`/`hgnc_id`
+   + `disease` and returns every submitter's classification, mode of inheritance, PMIDs,
    public-report and assertion-criteria URLs, dates (verbatim plus a normalized
    `submitted_as_date_iso` in standard/full), plus the `strongest_classification`
    and a full conflict analysis.

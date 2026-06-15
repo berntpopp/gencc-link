@@ -13,10 +13,19 @@ class TestCmd:
         assert out == {"tool": "search_genes", "arguments": {"query": "SKI"}}
 
 
+class TestGeneKwargs:
+    def test_hgnc_curie_maps_to_hgnc_id(self) -> None:
+        assert nc.gene_kwargs("HGNC:10896") == {"hgnc_id": "HGNC:10896"}
+        assert nc.gene_kwargs("hgnc:1") == {"hgnc_id": "hgnc:1"}
+
+    def test_symbol_maps_to_gene_symbol(self) -> None:
+        assert nc.gene_kwargs("SKI") == {"gene_symbol": "SKI"}
+
+
 class TestAfterSearchGenes:
     def test_with_hits(self) -> None:
         out = nc.after_search_genes(["HGNC:1"])
-        assert out == [{"tool": "get_gene_curations", "arguments": {"gene": "HGNC:1"}}]
+        assert out == [{"tool": "get_gene_curations", "arguments": {"hgnc_id": "HGNC:1"}}]
 
     def test_empty_with_query_crosses_over(self) -> None:
         out = nc.after_search_genes([], "ZZZX")
@@ -42,11 +51,12 @@ class TestAfterSearchDiseases:
 
 class TestAfterGeneCurations:
     def test_with_diseases(self) -> None:
-        out = nc.after_gene_curations("SKI", ["MONDO:1"])
+        # Builders receive a resolved gene_curie, so they emit the canonical hgnc_id.
+        out = nc.after_gene_curations("HGNC:2222", ["MONDO:1"])
         assert out == [
             {
                 "tool": "get_gene_disease_assertion",
-                "arguments": {"gene": "SKI", "disease": "MONDO:1"},
+                "arguments": {"hgnc_id": "HGNC:2222", "disease": "MONDO:1"},
             }
         ]
 
@@ -57,7 +67,7 @@ class TestAfterGeneCurations:
 class TestAfterDiseaseCurations:
     def test_with_genes(self) -> None:
         out = nc.after_disease_curations("MONDO:1", ["HGNC:1"])
-        assert out[0]["arguments"] == {"gene": "HGNC:1", "disease": "MONDO:1"}
+        assert out[0]["arguments"] == {"hgnc_id": "HGNC:1", "disease": "MONDO:1"}
 
     def test_empty(self) -> None:
         assert nc.after_disease_curations("MONDO:1", []) == []
@@ -78,7 +88,7 @@ class TestFanOut:
         curies = [f"HGNC:{i}" for i in range(8)]
         cmds = nc.after_search_genes(curies, "x")
         assert [c["tool"] for c in cmds] == ["get_gene_curations"] * nc._MAX_NEXT_COMMANDS
-        assert cmds[0]["arguments"]["gene"] == "HGNC:0"
+        assert cmds[0]["arguments"]["hgnc_id"] == "HGNC:0"
 
     def test_after_search_diseases_fans_out_capped(self) -> None:
         curies = [f"MONDO:{i}" for i in range(8)]
@@ -123,8 +133,16 @@ class TestFanOut:
 
 class TestRecoveryCommands:
     def test_not_found_gene_curations(self) -> None:
-        out = nc.recovery_commands("get_gene_curations", "not_found", {"gene": "ZZZ"}, None)
+        out = nc.recovery_commands(
+            "get_gene_curations", "not_found", {"gene_symbol": "ZZZ", "hgnc_id": None}, None
+        )
         assert out == [{"tool": "search_genes", "arguments": {"query": "ZZZ"}}]
+
+    def test_not_found_gene_curations_by_hgnc_id(self) -> None:
+        out = nc.recovery_commands(
+            "get_gene_curations", "not_found", {"gene_symbol": None, "hgnc_id": "HGNC:9"}, None
+        )
+        assert out == [{"tool": "search_genes", "arguments": {"query": "HGNC:9"}}]
 
     def test_not_found_disease_curations(self) -> None:
         out = nc.recovery_commands(
@@ -134,9 +152,14 @@ class TestRecoveryCommands:
 
     def test_not_found_assertion_two_steps(self) -> None:
         out = nc.recovery_commands(
-            "get_gene_disease_assertion", "not_found", {"gene": "SKI", "disease": "MONDO:1"}, None
+            "get_gene_disease_assertion",
+            "not_found",
+            {"gene_symbol": "SKI", "hgnc_id": None, "disease": "MONDO:1"},
+            None,
         )
         assert {c["tool"] for c in out} == {"get_gene_curations", "get_disease_curations"}
+        gene_cmd = next(c for c in out if c["tool"] == "get_gene_curations")
+        assert gene_cmd["arguments"] == {"gene_symbol": "SKI"}
 
     def test_not_found_resolve_identifier(self) -> None:
         out = nc.recovery_commands("resolve_identifier", "not_found", {"query": "foo"}, None)

@@ -5,6 +5,46 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.0] - 2026-06-15
+
+Adopts the **GeneFoundry Tool-Naming & Normalization Standard v1** (issue #3) and
+lands two dependency bumps. See
+`docs/superpowers/specs/2026-06-15-tool-naming-standard-v1-design.md`. All 12 tool
+names were already compliant (canonical verbs, unprefixed, <=50 chars), so this
+release adds the guardrail, aligns argument names to the fleet canon, and
+documents the gateway namespace.
+
+### Changed
+
+- **BREAKING -- fleet-canonical gene arguments.** `get_gene_curations`,
+  `get_gene_disease_assertion`, and `find_curations` no longer accept `gene`. Pass
+  `gene_symbol` (approved symbol, e.g. `SKI`) **or** `hgnc_id` (HGNC CURIE, e.g.
+  `HGNC:10896`) instead -- exactly one is required on the first two tools; at most
+  one acts as a filter on `find_curations`. There is no deprecation alias (the
+  project is pre-1.0). Batch `get_genes_curations` keeps its polymorphic `genes`
+  list (symbols or HGNC CURIEs; no fleet-canon plural exists). `_meta.next_commands`
+  and error-recovery commands now emit `hgnc_id` for resolved identifiers.
+- `parameter_conventions` in the capabilities surface documents `gene_symbol` /
+  `hgnc_id` in place of `gene` (this changes `capabilities_version`).
+
+### Added
+
+- **Tool-Naming Standard v1 CI guard** (`tests/test_tool_naming.py`): asserts
+  every registered tool name matches `^[a-z0-9_]{1,50}$`, starts with a canonical
+  verb (`get`/`search`/`list`/`resolve`/`find`/`compare`/`compute`, plus the
+  documented action-verb exceptions), and carries a domain tag -- mirroring
+  `genefoundry-router`'s `check_leaf_name` so the gateway and every leaf agree.
+- **README "GeneFoundry federation" section** documenting the `gencc` gateway
+  namespace token, the `serverInfo.name`, the unprefixed-leaf policy, and the
+  canonical argument names.
+
+### Build
+
+- `uvicorn[standard]` floor raised to `0.49.0`; `mcp[cli]` floor raised to
+  `1.27.2` (`uv.lock` regenerated; supersedes dependabot PR #2).
+- Docker base image bumped `python:3.12-slim` -> `python:3.14-slim`; trove
+  classifiers advertise Python 3.14 (supersedes dependabot PR #1).
+
 ## [0.4.0] - 2026-06-12
 
 Consumer-uplift release (target >9.5/10): resolves every finding in the fresh

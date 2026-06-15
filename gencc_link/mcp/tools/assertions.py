@@ -12,6 +12,7 @@ from gencc_link.mcp.envelope import McpErrorContext, run_mcp_tool
 from gencc_link.mcp.next_commands import after_assertion, cmd
 from gencc_link.mcp.schemas import ASSERTION_SCHEMA, FIND_CURATIONS_SCHEMA, RESOLVE_SCHEMA
 from gencc_link.mcp.service_adapters import get_gencc_service
+from gencc_link.mcp.tools._args import coalesce_gene
 from gencc_link.models.enums import ResponseMode
 
 if TYPE_CHECKING:
@@ -36,18 +37,22 @@ def register_assertion_tools(mcp: FastMCP) -> None:
             "Deep dive on one gene-disease pair: every submitter's classification, "
             "mode of inheritance, evidence report URL, criteria URL, PMIDs, and "
             "dates, plus the consensus classification and conflict analysis. "
-            "response_mode=full adds, alongside the harmonized submitters[], a "
-            "raw-extras submissions[] array (sgc_id, notes, original disease ids, "
+            "Identify the gene with EITHER gene_symbol (e.g. GLA) OR hgnc_id (HGNC "
+            "CURIE) -- pass exactly one -- and the disease via MONDO/OMIM CURIE or "
+            "title. response_mode=full adds, alongside the harmonized submitters[], "
+            "a raw-extras submissions[] array (sgc_id, notes, original disease ids, "
             "version) -- not the fields already in submitters[], and with no "
             "pair-level union pmids; correlate a row to a submitter via submitter_title."
         ),
     )
     async def get_gene_disease_assertion(
-        gene: str,
         disease: str,
+        gene_symbol: str | None = None,
+        hgnc_id: str | None = None,
         response_mode: _MODE = "standard",
     ) -> dict[str, Any]:
         async def call() -> dict[str, Any]:
+            gene = coalesce_gene(gene_symbol, hgnc_id, required=True)
             payload = get_gencc_service().get_gene_disease_assertion(
                 gene, disease, response_mode=response_mode
             )
@@ -63,7 +68,12 @@ def register_assertion_tools(mcp: FastMCP) -> None:
             "get_gene_disease_assertion",
             call,
             context=McpErrorContext(
-                "get_gene_disease_assertion", arguments={"gene": gene, "disease": disease}
+                "get_gene_disease_assertion",
+                arguments={
+                    "gene_symbol": gene_symbol,
+                    "hgnc_id": hgnc_id,
+                    "disease": disease,
+                },
             ),
             response_mode=response_mode,
         )
@@ -76,8 +86,9 @@ def register_assertion_tools(mcp: FastMCP) -> None:
         tags={"assertion", "search"},
         description=(
             "Filter aggregated gene-disease assertions by classification(s), "
-            "submitter(s), mode of inheritance, gene, disease, or conflict status, "
-            "with limit/offset paging. Example: classification=['Definitive'], "
+            "submitter(s), mode of inheritance, gene (gene_symbol or hgnc_id), "
+            "disease, or conflict status, with limit/offset paging. Example: "
+            "classification=['Definitive'], "
             "moi='Autosomal dominant', submitter=['ClinGen']. At least one filter "
             "is required. classification/submitter/moi match at the submission "
             "level (any submitter), not the consensus -- each row's `matched` "
@@ -93,7 +104,8 @@ def register_assertion_tools(mcp: FastMCP) -> None:
         ),
     )
     async def find_curations(
-        gene: str | None = None,
+        gene_symbol: str | None = None,
+        hgnc_id: str | None = None,
         disease: str | None = None,
         classification: list[str] | None = None,
         submitter: list[str] | None = None,
@@ -106,6 +118,7 @@ def register_assertion_tools(mcp: FastMCP) -> None:
         cursor: str | None = None,
     ) -> dict[str, Any]:
         async def call() -> dict[str, Any]:
+            gene = coalesce_gene(gene_symbol, hgnc_id, required=False)
             payload = get_gencc_service().find_curations(
                 gene=gene,
                 disease=disease,
@@ -178,7 +191,7 @@ def register_assertion_tools(mcp: FastMCP) -> None:
             payload = get_gencc_service().resolve_identifier(q, kind=kind)
             nexts: list[dict[str, Any]] = []
             if payload.get("gene"):
-                nexts.append(cmd("get_gene_curations", gene=payload["gene"]["gene_curie"]))
+                nexts.append(cmd("get_gene_curations", hgnc_id=payload["gene"]["gene_curie"]))
             if payload.get("disease"):
                 nexts.append(
                     cmd("get_disease_curations", disease=payload["disease"]["disease_curie"])

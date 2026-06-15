@@ -12,6 +12,15 @@ def cmd(tool: str, **arguments: Any) -> dict[str, Any]:
     return {"tool": tool, "arguments": arguments}
 
 
+def gene_kwargs(value: str) -> dict[str, str]:
+    """Map a gene value to its canonical arg: an HGNC CURIE -> hgnc_id, else gene_symbol.
+
+    Resolved next-command values are HGNC CURIEs (emit ``hgnc_id`` directly);
+    recovery commands echo raw user input, which may be a symbol or a CURIE.
+    """
+    return {"hgnc_id": value} if value.upper().startswith("HGNC:") else {"gene_symbol": value}
+
+
 def after_search_genes(gene_curies: list[str], query: str = "") -> list[dict[str, Any]]:
     """After resolving genes: pull each gene's curations (capped), or cross to disease search.
 
@@ -21,7 +30,7 @@ def after_search_genes(gene_curies: list[str], query: str = "") -> list[dict[str
     """
     if not gene_curies:
         return [cmd("search_diseases", query=query)] if query else []
-    return [cmd("get_gene_curations", gene=c) for c in gene_curies[:_MAX_NEXT_COMMANDS]]
+    return [cmd("get_gene_curations", hgnc_id=c) for c in gene_curies[:_MAX_NEXT_COMMANDS]]
 
 
 def after_search_diseases(disease_curies: list[str], query: str = "") -> list[dict[str, Any]]:
@@ -35,14 +44,14 @@ def after_gene_curations(gene: str, disease_curies: list[str]) -> list[dict[str,
     """After a gene's curations: drill into the top disease pair."""
     if not disease_curies:
         return []
-    return [cmd("get_gene_disease_assertion", gene=gene, disease=disease_curies[0])]
+    return [cmd("get_gene_disease_assertion", hgnc_id=gene, disease=disease_curies[0])]
 
 
 def after_disease_curations(disease: str, gene_curies: list[str]) -> list[dict[str, Any]]:
     """After a disease's curations: drill into the top gene pair."""
     if not gene_curies:
         return []
-    return [cmd("get_gene_disease_assertion", gene=gene_curies[0], disease=disease)]
+    return [cmd("get_gene_disease_assertion", hgnc_id=gene_curies[0], disease=disease)]
 
 
 def after_genes_curations(payload: dict[str, Any]) -> list[dict[str, Any]]:
@@ -61,7 +70,7 @@ def after_genes_curations(payload: dict[str, Any]) -> list[dict[str, Any]]:
             nexts.append(
                 cmd(
                     "get_gene_disease_assertion",
-                    gene=gene["gene_curie"],
+                    hgnc_id=gene["gene_curie"],
                     disease=diseases[0]["disease_curie"],
                 )
             )
@@ -84,7 +93,7 @@ def after_diseases_curations(payload: dict[str, Any]) -> list[dict[str, Any]]:
             nexts.append(
                 cmd(
                     "get_gene_disease_assertion",
-                    gene=genes[0]["gene_curie"],
+                    hgnc_id=genes[0]["gene_curie"],
                     disease=disease["disease_curie"],
                 )
             )
@@ -98,7 +107,7 @@ def after_diseases_curations(payload: dict[str, Any]) -> list[dict[str, Any]]:
 def after_assertion(gene: str, disease: str) -> list[dict[str, Any]]:
     """After a gene-disease assertion: widen to the gene's other diseases."""
     return [
-        cmd("get_gene_curations", gene=gene),
+        cmd("get_gene_curations", hgnc_id=gene),
         cmd("get_disease_curations", disease=disease),
     ]
 
@@ -111,15 +120,18 @@ def recovery_commands(
     Mirrors the success-path ``next_commands`` so an agent can deterministically
     recover from a failure instead of parsing the prose ``recovery_action``.
     """
+    # The gene-bearing tools now carry the canonical gene_symbol/hgnc_id pair in
+    # their error context; fold them (and any legacy `gene`) into one input value.
+    gene_in = arguments.get("hgnc_id") or arguments.get("gene_symbol") or arguments.get("gene")
     if error_code == "not_found":
-        if tool == "get_gene_curations" and arguments.get("gene"):
-            return [cmd("search_genes", query=arguments["gene"])]
+        if tool == "get_gene_curations" and gene_in:
+            return [cmd("search_genes", query=gene_in)]
         if tool == "get_disease_curations" and arguments.get("disease"):
             return [cmd("search_diseases", query=arguments["disease"])]
         if tool == "get_gene_disease_assertion":
             out: list[dict[str, Any]] = []
-            if arguments.get("gene"):
-                out.append(cmd("get_gene_curations", gene=arguments["gene"]))
+            if gene_in:
+                out.append(cmd("get_gene_curations", **gene_kwargs(gene_in)))
             if arguments.get("disease"):
                 out.append(cmd("get_disease_curations", disease=arguments["disease"]))
             return out
@@ -130,7 +142,7 @@ def recovery_commands(
             ]
     if error_code == "ambiguous_query" and tool == "resolve_identifier" and arguments.get("query"):
         return [
-            cmd("get_gene_curations", gene=arguments["query"]),
+            cmd("get_gene_curations", **gene_kwargs(arguments["query"])),
             cmd("get_disease_curations", disease=arguments["query"]),
         ]
     if error_code == "invalid_input":

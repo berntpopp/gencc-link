@@ -20,6 +20,7 @@ from gencc_link.mcp.schemas import (
     SEARCH_GENES_SCHEMA,
 )
 from gencc_link.mcp.service_adapters import get_gencc_service
+from gencc_link.mcp.tools._args import coalesce_gene
 from gencc_link.models.enums import ResponseMode
 
 if TYPE_CHECKING:
@@ -84,21 +85,25 @@ def register_gene_tools(mcp: FastMCP) -> None:
         output_schema=GENE_CURATIONS_SCHEMA,
         tags={"gene"},
         description=(
-            "Return all GenCC gene-disease validity assertions for one gene "
-            "(by symbol or HGNC id), grouped by disease, each with a consensus "
-            "classification across submitters and a conflict flag. Widen "
-            "response_mode for the per-submitter breakdown. Page via the "
-            "release-bound truncated.next_cursor (surfaced as _meta.next_commands[0])."
+            "Return all GenCC gene-disease validity assertions for one gene, "
+            "grouped by disease, each with a consensus classification across "
+            "submitters and a conflict flag. Identify the gene with EITHER "
+            "gene_symbol (approved symbol, e.g. SKI) OR hgnc_id (HGNC CURIE, e.g. "
+            "HGNC:10896) -- pass exactly one. Widen response_mode for the "
+            "per-submitter breakdown. Page via the release-bound "
+            "truncated.next_cursor (surfaced as _meta.next_commands[0])."
         ),
     )
     async def get_gene_curations(
-        gene: str = "",
+        gene_symbol: str | None = None,
+        hgnc_id: str | None = None,
         response_mode: _MODE = "compact",
         limit: int = 50,
         offset: int = 0,
         cursor: str | None = None,
     ) -> dict[str, Any]:
         async def call() -> dict[str, Any]:
+            gene = coalesce_gene(gene_symbol, hgnc_id, required=True)
             payload = get_gencc_service().get_gene_curations(
                 gene, response_mode=response_mode, limit=limit, offset=offset, cursor=cursor
             )
@@ -107,7 +112,9 @@ def register_gene_tools(mcp: FastMCP) -> None:
             nexts: list[dict[str, Any]] = []
             trunc = payload.get("truncated") or {}
             if trunc.get("next_cursor"):
-                nexts.append(cmd("get_gene_curations", gene=gene_arg, cursor=trunc["next_cursor"]))
+                nexts.append(
+                    cmd("get_gene_curations", hgnc_id=gene_arg, cursor=trunc["next_cursor"])
+                )
             nexts.extend(after_gene_curations(gene_arg, disease_curies))
             payload["_meta"] = {"next_commands": nexts[:5]}
             return payload
@@ -115,7 +122,10 @@ def register_gene_tools(mcp: FastMCP) -> None:
         return await run_mcp_tool(
             "get_gene_curations",
             call,
-            context=McpErrorContext("get_gene_curations", arguments={"gene": gene}),
+            context=McpErrorContext(
+                "get_gene_curations",
+                arguments={"gene_symbol": gene_symbol, "hgnc_id": hgnc_id},
+            ),
             response_mode=response_mode,
         )
 
