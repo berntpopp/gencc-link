@@ -446,7 +446,9 @@ class TestEvalHardening:
         assert second.structured_content["success"] is True
 
     async def test_get_gene_curations_pages_forward_with_cursor(self, mcp_client) -> None:
-        first = await mcp_client.call_tool("get_gene_curations", {"gene_symbol": "COL1A1", "limit": 1})
+        first = await mcp_client.call_tool(
+            "get_gene_curations", {"gene_symbol": "COL1A1", "limit": 1}
+        )
         d1 = first.structured_content
         assert "next_cursor" in d1["truncated"]
         cont = d1["_meta"]["next_commands"][0]

@@ -61,7 +61,7 @@ async def test_every_tool_has_a_domain_tag() -> None:
     assert not untagged, f"tools missing a domain tag (Rule 6): {untagged}"
 
 
-async def test_live_tools_match_capabilities_TOOLS() -> None:
+async def test_live_tools_match_capabilities_tools() -> None:
     live = {t.name for t in await _registered_tools()}
     assert live == set(TOOLS), f"capabilities.TOOLS drift: {live ^ set(TOOLS)}"
 
