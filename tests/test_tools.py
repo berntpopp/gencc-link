@@ -73,12 +73,36 @@ async def test_search_diseases_success(mcp_client) -> None:
 
 
 async def test_get_gene_curations_success(mcp_client) -> None:
-    result = await mcp_client.call_tool("get_gene_curations", {"gene": "SKI"})
+    result = await mcp_client.call_tool("get_gene_curations", {"gene_symbol": "SKI"})
     data = result.structured_content
     assert data["success"] is True
     assert data["gene"]["gene_symbol"] == "SKI"
     assert "next_commands" in data["_meta"]
     assert data["_meta"]["citation_ref"] == "gencc://citation"
+
+
+async def test_get_gene_curations_by_hgnc_id(mcp_client) -> None:
+    result = await mcp_client.call_tool("get_gene_curations", {"hgnc_id": "HGNC:10896"})
+    data = result.structured_content
+    assert data["success"] is True
+    assert data["gene"]["gene_symbol"] == "SKI"
+
+
+async def test_get_gene_curations_requires_a_gene(mcp_client) -> None:
+    result = await mcp_client.call_tool("get_gene_curations", {})
+    data = result.structured_content
+    assert data["success"] is False
+    assert data["error_code"] == "invalid_input"
+    assert data["field_errors"][0]["field"] == "gene_symbol"
+
+
+async def test_get_gene_curations_rejects_both_gene_args(mcp_client) -> None:
+    result = await mcp_client.call_tool(
+        "get_gene_curations", {"gene_symbol": "SKI", "hgnc_id": "HGNC:10896"}
+    )
+    data = result.structured_content
+    assert data["success"] is False
+    assert data["error_code"] == "invalid_input"
 
 
 async def test_get_disease_curations_success(mcp_client) -> None:
@@ -90,7 +114,7 @@ async def test_get_disease_curations_success(mcp_client) -> None:
 async def test_get_gene_disease_assertion_gla_conflict(mcp_client) -> None:
     result = await mcp_client.call_tool(
         "get_gene_disease_assertion",
-        {"gene": "GLA", "disease": "MONDO:0010526", "response_mode": "full"},
+        {"gene_symbol": "GLA", "disease": "MONDO:0010526", "response_mode": "full"},
     )
     data = result.structured_content
     assert data["success"] is True
@@ -102,7 +126,7 @@ async def test_get_gene_disease_assertion_gla_conflict(mcp_client) -> None:
 async def test_assertion_full_mode_is_deduplicated(mcp_client) -> None:
     result = await mcp_client.call_tool(
         "get_gene_disease_assertion",
-        {"gene": "SKI", "disease": "MONDO:0008426", "response_mode": "full"},
+        {"gene_symbol": "SKI", "disease": "MONDO:0008426", "response_mode": "full"},
     )
     d = result.structured_content
     assert "pmids" not in d["assertion"]  # no pair-level union
@@ -163,7 +187,7 @@ async def test_diagnostics_tool(mcp_client) -> None:
 
 
 async def test_error_not_found(mcp_client) -> None:
-    result = await mcp_client.call_tool("get_gene_curations", {"gene": "NOTAGENE"})
+    result = await mcp_client.call_tool("get_gene_curations", {"gene_symbol": "NOTAGENE"})
     data = result.structured_content
     assert data["success"] is False
     assert data["error_code"] == "not_found"
@@ -204,7 +228,7 @@ class TestEvalHardening:
         assert data["_meta"]["next_commands"][0]["tool"] == "list_submitters"
 
     async def test_gene_curations_not_found_recovery(self, mcp_client) -> None:
-        result = await mcp_client.call_tool("get_gene_curations", {"gene": "NOTAGENE"})
+        result = await mcp_client.call_tool("get_gene_curations", {"gene_symbol": "NOTAGENE"})
         data = result.structured_content
         assert data["success"] is False
         assert data["error_code"] == "not_found"
@@ -230,7 +254,7 @@ class TestEvalHardening:
 
     async def test_compact_curations_has_citation_ref(self, mcp_client) -> None:
         result = await mcp_client.call_tool(
-            "get_gene_curations", {"gene": "SKI", "response_mode": "compact"}
+            "get_gene_curations", {"gene_symbol": "SKI", "response_mode": "compact"}
         )
         data = result.structured_content
         assert data["_meta"]["citation_ref"] == "gencc://citation"
@@ -246,7 +270,7 @@ class TestEvalHardening:
     async def test_assertion_full_has_iso_date(self, mcp_client) -> None:
         result = await mcp_client.call_tool(
             "get_gene_disease_assertion",
-            {"gene": "GLA", "disease": "MONDO:0010526", "response_mode": "full"},
+            {"gene_symbol": "GLA", "disease": "MONDO:0010526", "response_mode": "full"},
         )
         data = result.structured_content
         subs = data["assertion"]["submitters"]
@@ -254,7 +278,7 @@ class TestEvalHardening:
 
     async def test_compact_has_citation_short(self, mcp_client) -> None:
         result = await mcp_client.call_tool(
-            "get_gene_curations", {"gene": "SKI", "response_mode": "compact"}
+            "get_gene_curations", {"gene_symbol": "SKI", "response_mode": "compact"}
         )
         meta = result.structured_content["_meta"]
         assert meta["citation_short"] == "GenCC (thegencc.org), CC0-1.0"
@@ -262,7 +286,7 @@ class TestEvalHardening:
 
     async def test_full_uses_full_citation_not_short(self, mcp_client) -> None:
         result = await mcp_client.call_tool(
-            "get_gene_curations", {"gene": "SKI", "response_mode": "full"}
+            "get_gene_curations", {"gene_symbol": "SKI", "response_mode": "full"}
         )
         meta = result.structured_content["_meta"]
         assert "recommended_citation" in meta
@@ -270,7 +294,7 @@ class TestEvalHardening:
 
     async def test_standard_uses_citation_ref_not_full(self, mcp_client) -> None:
         result = await mcp_client.call_tool(
-            "get_gene_curations", {"gene": "SKI", "response_mode": "standard"}
+            "get_gene_curations", {"gene_symbol": "SKI", "response_mode": "standard"}
         )
         meta = result.structured_content["_meta"]
         assert meta["citation_ref"] == "gencc://citation"
@@ -289,18 +313,18 @@ class TestEvalHardening:
 
     async def test_data_license_only_in_full(self, mcp_client) -> None:
         compact = await mcp_client.call_tool(
-            "get_gene_curations", {"gene": "SKI", "response_mode": "compact"}
+            "get_gene_curations", {"gene_symbol": "SKI", "response_mode": "compact"}
         )
         assert "data_license" not in compact.structured_content["_meta"]
         full = await mcp_client.call_tool(
-            "get_gene_curations", {"gene": "SKI", "response_mode": "full"}
+            "get_gene_curations", {"gene_symbol": "SKI", "response_mode": "full"}
         )
         assert full.structured_content["_meta"]["data_license"] == "CC0-1.0"
 
     async def test_assertion_minimal_omits_submitters(self, mcp_client) -> None:
         result = await mcp_client.call_tool(
             "get_gene_disease_assertion",
-            {"gene": "GLA", "disease": "MONDO:0010526", "response_mode": "minimal"},
+            {"gene_symbol": "GLA", "disease": "MONDO:0010526", "response_mode": "minimal"},
         )
         a = result.structured_content["assertion"]
         assert "submitters" not in a
@@ -314,7 +338,7 @@ class TestEvalHardening:
         async def assertion(mode: str) -> dict:
             r = await mcp_client.call_tool(
                 "get_gene_disease_assertion",
-                {"gene": "GLA", "disease": "MONDO:0010526", "response_mode": mode},
+                {"gene_symbol": "GLA", "disease": "MONDO:0010526", "response_mode": mode},
             )
             return r.structured_content["assertion"]
 
@@ -422,7 +446,7 @@ class TestEvalHardening:
         assert second.structured_content["success"] is True
 
     async def test_get_gene_curations_pages_forward_with_cursor(self, mcp_client) -> None:
-        first = await mcp_client.call_tool("get_gene_curations", {"gene": "COL1A1", "limit": 1})
+        first = await mcp_client.call_tool("get_gene_curations", {"gene_symbol": "COL1A1", "limit": 1})
         d1 = first.structured_content
         assert "next_cursor" in d1["truncated"]
         cont = d1["_meta"]["next_commands"][0]
@@ -443,7 +467,7 @@ class TestEvalHardening:
     async def test_invalid_response_mode_is_structured(self, mcp_client) -> None:
         result = await mcp_client.call_tool(
             "get_gene_disease_assertion",
-            {"gene": "SKI", "disease": "MONDO:0008426", "response_mode": "ultra"},
+            {"gene_symbol": "SKI", "disease": "MONDO:0008426", "response_mode": "ultra"},
         )
         data = result.structured_content
         assert data["success"] is False
