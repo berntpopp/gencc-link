@@ -81,7 +81,12 @@ def create_app() -> FastAPI:
         """Liveness probe. Reports data status without forcing a build."""
         from gencc_link.mcp.capabilities import _data_status
 
-        return {"status": "ok", "version": __version__, "data": _data_status()}
+        return {
+            "status": "ok",
+            "version": __version__,
+            "transport": "streamable-http-stateless",
+            "data": _data_status(),
+        }
 
     @app.get("/")
     async def root() -> dict[str, Any]:

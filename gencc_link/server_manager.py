@@ -39,7 +39,7 @@ class UnifiedServerManager:
         from gencc_link.mcp.facade import create_gencc_mcp
 
         mcp = create_gencc_mcp()
-        mcp_asgi = mcp.http_app(path=settings.mcp_path)
+        mcp_asgi = mcp.http_app(path=settings.mcp_path, stateless_http=True, json_response=True)
 
         original_lifespan = fastapi_app.router.lifespan_context
 

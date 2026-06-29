@@ -24,6 +24,7 @@ def test_health(client: TestClient) -> None:
     body = resp.json()
     assert body["status"] == "ok"
     assert "version" in body
+    assert body["transport"] == "streamable-http-stateless"
     assert body["data"]["status"] in {"ready", "unavailable"}
 
 
