@@ -5,6 +5,16 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.1] - 2026-06-29
+
+### Security
+
+- Adopt GeneFoundry Container & Deployment Hardening Standard v1: digest-pinned base
+  image, new `.dockerignore`, `prod` overlay now sets a read-only rootfs + tmpfs with
+  writes confined to the `/app/data` database volume (closing the prior `read_only`
+  gap), CORS no longer combines wildcard origins with credentials, and a CI container
+  scan (Trivy) + SBOM workflow.
+
 ## [0.5.0] - 2026-06-15
 
 Adopts the **GeneFoundry Tool-Naming & Normalization Standard v1** (issue #3) and
