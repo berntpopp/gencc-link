@@ -1,10 +1,16 @@
-"""Tool-Naming Standard v1 guard -- every registered MCP tool must be fleet-compliant.
+"""Tool-Naming Standard v1.1 guard -- every registered MCP tool must be fleet-compliant.
 
-The contract is a verbatim copy of genefoundry-router's ``cli.check_leaf_name``
-(``CANONICAL_VERBS``, ``ACTION_VERB_EXCEPTIONS``, ``LEAF_NAME_RE``) so the gateway
+The contract mirrors genefoundry-router's ``cli.check_leaf_name`` so the gateway
 and every ``-link`` leaf agree on what a compliant tool name is. Adding a
 non-compliant tool (server-prefixed, camelCase, non-canonical verb, or >50 chars)
 fails CI here -- this is issue #3 Rule 8 / the Definition-of-Done lint guard.
+
+Adopts the ratified two-tier verb canon (2026-06-30):
+  Tier-1 -- universal read/query: get, search, list, resolve, find, compare, compute, map
+  Tier-2 -- sanctioned domain action/compute: predict, annotate, recode, liftover, analyze,
+            score, submit, export, generate, download
+  ops/meta carve-out -- tools tagged 'ops' or 'meta' skip the verb rule (charset/length
+  and no-self-prefix still apply). See docs/TOOL-NAMING-STANDARD-v1.md Q3.
 """
 
 from __future__ import annotations
@@ -18,28 +24,50 @@ from gencc_link.mcp.facade import create_gencc_mcp
 
 pytestmark = pytest.mark.mcp
 
-# --- Tool-Naming Standard v1 contract (mirror of genefoundry-router/cli.py) ---
+# --- Tool-Naming Standard v1.1 contract (mirror of genefoundry-router/cli.py) ---
 LEAF_NAME_RE = re.compile(r"^[a-z0-9_]{1,50}$")
-CANONICAL_VERBS = {"get", "search", "list", "resolve", "find", "compare", "compute"}
-ACTION_VERB_EXCEPTIONS = {
-    "predict",
-    "analyze",
-    "annotate",
-    "submit",
-    "export",
-    "generate",
-    "download",
-}
+
+#: Tier-1 -- universal read/query canon (Standard v1.1).
+CANONICAL_VERBS = frozenset(
+    {"get", "search", "list", "resolve", "find", "compare", "compute", "map"}
+)
+
+#: Tier-2 -- sanctioned domain action/compute verbs (fleet-wide, Standard v1.1).
+ACTION_VERB_EXCEPTIONS = frozenset(
+    {
+        "predict",
+        "annotate",
+        "recode",
+        "liftover",
+        "analyze",
+        "score",
+        "submit",
+        "export",
+        "generate",
+        "download",
+    }
+)
+
+#: Tags that exempt a tool from the verb rule (Standard v1.1 Q3 ops/meta carve-out).
+OPS_META_TAGS = frozenset({"ops", "meta"})
 
 
-def check_leaf_name(leaf: str) -> list[str]:
-    """Return Tool-Naming Standard v1 violations for a single leaf tool name."""
+def check_leaf_name(leaf: str, tags: frozenset[str] | None = None) -> list[str]:
+    """Return Tool-Naming Standard v1.1 violations for a single leaf tool name.
+
+    Args:
+        leaf: The bare tool name (no namespace prefix).
+        tags: Optional set of tags on the tool; 'ops'/'meta' tagged tools skip
+              the verb rule (Standard v1.1 Q3 ops/meta carve-out).
+    """
     issues: list[str] = []
     if not LEAF_NAME_RE.match(leaf):
         issues.append(f"charset/length: {leaf!r} must match ^[a-z0-9_]{{1,50}}$ (<=50)")
-    verb = leaf.split("_", 1)[0]
-    if verb not in CANONICAL_VERBS and verb not in ACTION_VERB_EXCEPTIONS:
-        issues.append(f"verb: {leaf!r} starts with non-canonical verb {verb!r}")
+    effective_tags = tags or frozenset()
+    if not (effective_tags & OPS_META_TAGS):
+        verb = leaf.split("_", 1)[0]
+        if verb not in CANONICAL_VERBS and verb not in ACTION_VERB_EXCEPTIONS:
+            issues.append(f"verb: {leaf!r} starts with non-canonical verb {verb!r}")
     return issues
 
 
@@ -48,11 +76,15 @@ async def _registered_tools() -> list:
     return await create_gencc_mcp().list_tools()
 
 
-async def test_every_tool_name_is_standard_v1_compliant() -> None:
+async def test_every_tool_name_is_standard_v1_1_compliant() -> None:
     tools = await _registered_tools()
     assert tools, "no tools registered"
-    violations = {t.name: issues for t in tools if (issues := check_leaf_name(t.name))}
-    assert not violations, f"Tool-Naming Standard v1 violations: {violations}"
+    violations = {
+        t.name: issues
+        for t in tools
+        if (issues := check_leaf_name(t.name, frozenset(getattr(t, "tags", None) or ())))
+    }
+    assert not violations, f"Tool-Naming Standard v1.1 violations: {violations}"
 
 
 async def test_every_tool_has_a_domain_tag() -> None:
