@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from fastmcp import FastMCP
 
+from gencc_link import __version__
 from gencc_link.mcp.capabilities import register_capability_resources
 from gencc_link.mcp.middleware import InputValidationMiddleware
 from gencc_link.mcp.resources import GENCC_SERVER_INSTRUCTIONS
@@ -20,6 +21,7 @@ def create_gencc_mcp() -> FastMCP:
     """Build a FastMCP instance for GenCC-Link with all tools and resources."""
     mcp = FastMCP(
         name="gencc-link",
+        version=__version__,
         instructions=GENCC_SERVER_INSTRUCTIONS,
         mask_error_details=True,
     )

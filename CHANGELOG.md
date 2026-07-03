@@ -5,6 +5,18 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.2] - 2026-07-03
+
+### Fixed
+
+- **MCP `serverInfo.version` now advertises the package version.** The `initialize`
+  handshake previously reported the FastMCP framework version (`3.4.2`) because the
+  `FastMCP(...)` constructor was created without a `version=` argument; it now passes
+  the metadata-derived `gencc_link.__version__`, so `serverInfo.version` matches
+  `/health` and the installed package version. Added a single-source guard
+  (`tests/unit/test_version_single_source.py`) tying `pyproject` -> installed metadata
+  -> `__version__` -> `serverInfo.version` to one value.
+
 ## [0.5.1] - 2026-06-29
 
 ### Security
