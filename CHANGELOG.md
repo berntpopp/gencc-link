@@ -5,6 +5,17 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.3] - 2026-07-07
+
+### Security
+
+- **CORS credentials are now forced off.** This backend is unauthenticated by design
+  (no cookies or session), so CORS credentials are meaningless; the `allow_credentials`
+  default is now `False` and the middleware always installs with credentials disabled.
+  The dangerous wildcard-origin + credentials combination now fails loud at startup
+  (`RuntimeError`) instead of being silently downgraded, tightening the Container
+  Hardening Standard v1 posture.
+
 ## [0.5.2] - 2026-07-03
 
 ### Fixed
