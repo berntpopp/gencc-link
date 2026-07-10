@@ -123,6 +123,14 @@ class ServerSettings(BaseSettings):
         default="unified", description="Server transport mode"
     )
     mcp_path: str = Field(default="/mcp", description="MCP endpoint path")
+    allowed_hosts: list[str] = Field(
+        default=["localhost", "127.0.0.1", "::1"],
+        description="Host header values accepted by the MCP request guard",
+    )
+    allowed_origins: list[str] = Field(
+        default=[],
+        description="Browser Origin values accepted by the MCP request guard",
+    )
 
     # CORS
     cors_origins: list[str] = Field(
@@ -151,12 +159,19 @@ class ServerSettings(BaseSettings):
     def _validate_mcp_path(cls, v: str) -> str:
         return v if v.startswith("/") else f"/{v}"
 
-    @field_validator("cors_origins", mode="before")
+    @field_validator("allowed_hosts", "allowed_origins", "cors_origins", mode="before")
     @classmethod
-    def _parse_cors_origins(cls, v: Any) -> list[str]:
+    def _parse_string_list(cls, v: Any) -> list[str]:
         if isinstance(v, str):
-            return [origin.strip() for origin in v.split(",") if origin.strip()]
+            return [item.strip() for item in v.split(",") if item.strip()]
         return list(v) if v else []
+
+    @field_validator("allowed_hosts")
+    @classmethod
+    def _reject_wildcard_host(cls, v: list[str]) -> list[str]:
+        if any(any(marker in host for marker in "*?[]") for host in v):
+            raise ValueError("wildcard patterns are not allowed in allowed_hosts")
+        return v
 
 
 # Global settings instance
