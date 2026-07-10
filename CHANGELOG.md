@@ -5,6 +5,23 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.0] - 2026-07-10
+
+### Security
+
+- Replace the disabled FastMCP Host/Origin protection with strict validation on
+  the outer ASGI application and the native MCP transport. Untrusted Host values
+  are rejected across root, health, and MCP routes; browser Origin values must be
+  same-origin or explicitly approved.
+- Reject wildcard Host patterns and declare the production proxy hostname and
+  loopback health-check Host explicitly in the supplied Compose profiles.
+
+### Changed
+
+- **BREAKING -- proxy Host configuration.** Custom reverse-proxy deployments must
+  add their exact public hostname to `GENCC_LINK_ALLOWED_HOSTS`. JSON lists are
+  accepted; the safe default permits only localhost and loopback addresses.
+
 ## [0.5.4] - 2026-07-10
 
 ### Fixed
