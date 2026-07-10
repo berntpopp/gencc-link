@@ -5,6 +5,19 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.4] - 2026-07-10
+
+### Fixed
+
+- Preserve the structured `invalid_input` MCP envelope with FastMCP 3.4.4 by unwrapping only
+  framework validation errors whose cause is a Pydantic argument-validation failure. Unrelated
+  FastMCP validation errors continue to propagate instead of being misclassified.
+
+### Build
+
+- Upgrade FastMCP to 3.4.4, Uvicorn to 0.51.0, Ruff to 0.15.21, mypy to 2.2.0, and the
+  `astral-sh/setup-uv` workflows to the immutable v8.3.2 commit.
+
 ## [0.5.3] - 2026-07-07
 
 ### Security
