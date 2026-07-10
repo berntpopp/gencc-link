@@ -14,9 +14,10 @@ from __future__ import annotations
 
 from typing import Any
 
+from fastmcp.exceptions import ValidationError as FastMCPValidationError
 from fastmcp.server.middleware import CallNext, Middleware, MiddlewareContext
 from fastmcp.tools.tool import ToolResult
-from pydantic import ValidationError
+from pydantic import ValidationError as PydanticValidationError
 
 from gencc_link.mcp.envelope import validation_error_envelope
 
@@ -31,10 +32,22 @@ class InputValidationMiddleware(Middleware):
     ) -> ToolResult:
         try:
             return await call_next(context)
-        except ValidationError as exc:
-            envelope = validation_error_envelope(
-                tool_name=context.message.name,
-                arguments=dict(context.message.arguments or {}),
-                exc=exc,
-            )
-            return ToolResult(structured_content=envelope)
+        except FastMCPValidationError as exc:
+            cause = exc.__cause__
+            if not isinstance(cause, PydanticValidationError):
+                raise
+            return self._validation_result(context, cause)
+        except PydanticValidationError as exc:
+            return self._validation_result(context, exc)
+
+    @staticmethod
+    def _validation_result(
+        context: MiddlewareContext[Any], exc: PydanticValidationError
+    ) -> ToolResult:
+        """Convert a validated argument failure into the public error envelope."""
+        envelope = validation_error_envelope(
+            tool_name=context.message.name,
+            arguments=dict(context.message.arguments or {}),
+            exc=exc,
+        )
+        return ToolResult(structured_content=envelope)
