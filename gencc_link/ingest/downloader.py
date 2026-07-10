@@ -9,6 +9,9 @@ re-download only consumes quota when the upstream data actually changed.
 from __future__ import annotations
 
 import json
+import os
+import tempfile
+import time
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -194,16 +197,15 @@ def head(config: GenCCDataConfigModel) -> dict[str, str | None]:
     url = _export_url(config)
     try:
         with httpx.Client(
-            follow_redirects=True,
+            follow_redirects=False,
             timeout=config.download_timeout,
         ) as client:
             response = client.head(url, headers=_headers(config))
-            response.raise_for_status()
-    except httpx.HTTPStatusError as exc:
-        raise DownloadError(
-            f"HEAD {url} failed: {exc.response.status_code}",
-            status_code=exc.response.status_code,
-        ) from exc
+            if response.status_code != httpx.codes.OK:
+                raise DownloadError(
+                    f"HEAD {url} failed: {response.status_code}",
+                    status_code=response.status_code,
+                )
     except httpx.HTTPError as exc:
         raise DownloadError(f"HEAD {url} failed: {exc}") from exc
     return {
@@ -250,7 +252,7 @@ def download_export(
     try:
         with (
             httpx.Client(
-                follow_redirects=True,
+                follow_redirects=False,
                 timeout=config.download_timeout,
             ) as client,
             client.stream("GET", url, headers=request_headers) as response,
@@ -267,18 +269,27 @@ def download_export(
                     "GenCC daily download quota exceeded (HTTP 429).",
                     status_code=response.status_code,
                 )
-            response.raise_for_status()
+            if response.status_code != httpx.codes.OK:
+                raise DownloadError(
+                    f"GET {url} failed: {response.status_code}",
+                    status_code=response.status_code,
+                )
             etag = response.headers.get("ETag")
             last_modified = response.headers.get("Last-Modified")
             content_length = _int_or_none(response.headers.get("Content-Length"))
-            _stream_to_file(response, export_path)
+            if content_length is not None and content_length > config.max_download_bytes:
+                raise DownloadError(
+                    f"GenCC export Content-Length {content_length} exceeds "
+                    f"{config.max_download_bytes} bytes"
+                )
+            _stream_to_file(
+                response,
+                export_path,
+                max_bytes=config.max_download_bytes,
+                max_seconds=config.max_download_seconds,
+            )
     except (QuotaExceededError, DownloadError):
         raise
-    except httpx.HTTPStatusError as exc:
-        raise DownloadError(
-            f"GET {url} failed: {exc.response.status_code}",
-            status_code=exc.response.status_code,
-        ) from exc
     except httpx.HTTPError as exc:
         raise DownloadError(f"GET {url} failed: {exc}") from exc
 
@@ -293,8 +304,27 @@ def download_export(
     )
 
 
-def _stream_to_file(response: httpx.Response, path: Path) -> None:
-    """Stream a response body to ``path`` in binary chunks."""
-    with path.open("wb") as handle:
-        for chunk in response.iter_bytes(_CHUNK_SIZE):
-            handle.write(chunk)
+def _stream_to_file(
+    response: httpx.Response,
+    path: Path,
+    *,
+    max_bytes: int,
+    max_seconds: int,
+) -> None:
+    """Stream a bounded response to a temp file, then atomically replace ``path``."""
+    fd, tmp_name = tempfile.mkstemp(dir=path.parent, suffix=".download.tmp")
+    tmp_path = Path(tmp_name)
+    started = time.monotonic()
+    written = 0
+    try:
+        with os.fdopen(fd, "wb") as handle:
+            for chunk in response.iter_bytes(_CHUNK_SIZE):
+                written += len(chunk)
+                if written > max_bytes:
+                    raise DownloadError(f"GenCC export exceeded {max_bytes} bytes")
+                if time.monotonic() - started > max_seconds:
+                    raise DownloadError(f"GenCC export exceeded {max_seconds} seconds")
+                handle.write(chunk)
+        os.replace(tmp_path, path)
+    finally:
+        tmp_path.unlink(missing_ok=True)
