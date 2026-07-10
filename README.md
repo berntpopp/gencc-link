@@ -204,6 +204,8 @@ config uses a double underscore) and an optional `.env` file. Copy
 | `GENCC_LINK_PORT` | `8000` | Server port |
 | `GENCC_LINK_TRANSPORT` | `unified` | `unified` \| `http` \| `stdio` |
 | `GENCC_LINK_MCP_PATH` | `/mcp` | MCP endpoint path |
+| `GENCC_LINK_ALLOWED_HOSTS` | `["localhost","127.0.0.1","::1"]` | Exact Host values accepted by the MCP request guard; add the public proxy hostname in production |
+| `GENCC_LINK_ALLOWED_ORIGINS` | `[]` | Browser origins accepted by the MCP request guard; same-origin and requests without Origin remain valid |
 | `GENCC_LINK_LOG_LEVEL` | `INFO` | Logging level |
 | `GENCC_LINK_LOG_FORMAT` | `console` | `console` or `json` |
 | `GENCC_LINK_DATA__SOURCE_FORMAT` | `new` | GenCC export format (`new` \| `legacy`) |

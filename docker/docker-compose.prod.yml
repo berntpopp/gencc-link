@@ -10,6 +10,7 @@ services:
       GENCC_LINK_LOG_LEVEL: INFO
       GENCC_LINK_LOG_FORMAT: json
       GENCC_LINK_RELOAD: "false"
+      GENCC_LINK_ALLOWED_HOSTS: '["localhost","127.0.0.1","::1","gencc-link.genefoundry.org"]'
       GENCC_LINK_DATA__DATA_DIR: /app/data
       GENCC_LINK_DATA__AUTO_BOOTSTRAP: "true"
       GENCC_LINK_DATA__CACHE_SIZE: 2000
@@ -59,7 +60,7 @@ services:
     # Enhanced health check for production. First boot builds the database, so
     # keep a generous start period before failures count.
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://127.0.0.1:8000/health"]
+      test: ["CMD", "curl", "-f", "-H", "Host: localhost", "http://127.0.0.1:8000/health"]
       interval: 20s
       timeout: 5s
       retries: 5
