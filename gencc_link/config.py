@@ -40,6 +40,24 @@ class GenCCDataConfigModel(BaseModel):
         le=900,
         description="HTTP timeout (seconds) for downloading the GenCC export.",
     )
+    max_download_bytes: int = Field(
+        default=128 * 1024 * 1024,
+        ge=1,
+        le=4 * 1024**3,
+        description=(
+            "Maximum export bytes; measured 24,507,669 bytes on 2026-07-10. "
+            "Override GENCC_LINK_DATA__MAX_DOWNLOAD_BYTES as the export grows."
+        ),
+    )
+    max_download_seconds: int = Field(
+        default=900,
+        ge=30,
+        le=7200,
+        description=(
+            "Total export streaming deadline in seconds; override "
+            "GENCC_LINK_DATA__MAX_DOWNLOAD_SECONDS for slow links."
+        ),
+    )
     user_agent: str = Field(
         default=f"GenCC-Link/{__version__} (+https://github.com/berntpopp/gencc-link)",
         description="User-Agent sent to thegencc.org.",

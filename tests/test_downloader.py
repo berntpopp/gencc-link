@@ -34,6 +34,78 @@ def _config() -> GenCCDataConfigModel:
 
 class TestDownloadExport:
     @respx.mock
+    def test_download_rejects_redirect_without_following(self, tmp_path: Path) -> None:
+        cfg = GenCCDataConfigModel(data_dir=tmp_path, max_download_bytes=1024)
+        target_url = "https://evil.example/export.tsv"
+        target = respx.get(target_url).mock(return_value=httpx.Response(200))
+        respx.get(EXPORT_URL).mock(
+            return_value=httpx.Response(302, headers={"Location": target_url})
+        )
+
+        with pytest.raises(DownloadError, match="302"):
+            download_export(cfg)
+
+        assert target.called is False
+
+    @respx.mock
+    def test_chunked_overflow_preserves_existing_export(self, tmp_path: Path) -> None:
+        cfg = GenCCDataConfigModel(data_dir=tmp_path, max_download_bytes=8)
+        destination = tmp_path / EXPORT_FILENAME
+        destination.write_text("old", encoding="utf-8")
+        respx.get(EXPORT_URL).mock(
+            return_value=httpx.Response(
+                200,
+                headers={"Content-Length": "1"},
+                content=b"123456789",
+            )
+        )
+
+        with pytest.raises(DownloadError, match="exceeded 8 bytes"):
+            download_export(cfg)
+
+        assert destination.read_text(encoding="utf-8") == "old"
+        assert list(tmp_path.glob("*.download.tmp")) == []
+        assert not (tmp_path / CACHE_FILENAME).exists()
+
+    @respx.mock
+    def test_content_length_limit_preserves_existing_export(self, tmp_path: Path) -> None:
+        cfg = GenCCDataConfigModel(data_dir=tmp_path, max_download_bytes=8)
+        destination = tmp_path / EXPORT_FILENAME
+        destination.write_text("old", encoding="utf-8")
+        respx.get(EXPORT_URL).mock(
+            return_value=httpx.Response(200, headers={"Content-Length": "9"})
+        )
+
+        with pytest.raises(DownloadError, match="Content-Length 9 exceeds 8 bytes"):
+            download_export(cfg)
+
+        assert destination.read_text(encoding="utf-8") == "old"
+        assert list(tmp_path.glob("*.download.tmp")) == []
+
+    @respx.mock
+    def test_total_download_deadline_preserves_existing_export(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        import gencc_link.ingest.downloader as downloader
+
+        cfg = GenCCDataConfigModel(
+            data_dir=tmp_path,
+            max_download_bytes=1024,
+            max_download_seconds=30,
+        )
+        destination = tmp_path / EXPORT_FILENAME
+        destination.write_text("old", encoding="utf-8")
+        respx.get(EXPORT_URL).mock(return_value=httpx.Response(200, content=b"new"))
+        ticks = iter([0.0, 31.0])
+        monkeypatch.setattr(downloader.time, "monotonic", lambda: next(ticks))
+
+        with pytest.raises(DownloadError, match="exceeded 30 seconds"):
+            download_export(cfg)
+
+        assert destination.read_text(encoding="utf-8") == "old"
+        assert list(tmp_path.glob("*.download.tmp")) == []
+
+    @respx.mock
     def test_200_writes_file_and_returns_result(self) -> None:
         cfg = _config()
         respx.get(EXPORT_URL).mock(
@@ -110,6 +182,20 @@ class TestDownloadExport:
 
 
 class TestHead:
+    @respx.mock
+    def test_head_rejects_redirect_without_following(self) -> None:
+        cfg = _config()
+        target_url = "https://evil.example/export.tsv"
+        target = respx.head(target_url).mock(return_value=httpx.Response(200))
+        respx.head(EXPORT_URL).mock(
+            return_value=httpx.Response(302, headers={"Location": target_url})
+        )
+
+        with pytest.raises(DownloadError, match="302"):
+            head(cfg)
+
+        assert target.called is False
+
     @respx.mock
     def test_head_returns_headers(self) -> None:
         cfg = _config()
