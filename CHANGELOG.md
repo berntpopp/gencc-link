@@ -5,6 +5,26 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.0] - 2026-07-11
+
+### Security
+
+- **BREAKING -- `get_gene_disease_assertion`'s `submissions[].notes` is now a
+  typed `untrusted_text` object.** Response-Envelope Standard v1.1
+  untrusted-content fencing: a submitting organization's free-text intake
+  note (only present at `response_mode=full`) is emitted as
+  `{kind: "untrusted_text", text, provenance: {source, record_id,
+  retrieved_at}, raw_sha256}` instead of a bare string, so hosts/models treat
+  retrieved GenCC prose as typed evidence data, never as instructions. A
+  missing note stays `null` rather than being wrapped. Defense in depth;
+  research use only, mirrors upstream GenCC disclaimers. Consumers reading
+  `submissions[].notes` as a plain string must update to read `.text`.
+- Added `gencc_link/mcp/untrusted_content.py` (copied byte-identical from the
+  released `pubtator-link` reference) plus a limits helper
+  (`enforce_untrusted_text_limits`) enforcing the v1.1 ceilings (2 MiB/object,
+  128 objects, 8 MiB total) as an explicit `untrusted_text_limit_exceeded`
+  error, never a masked `internal_error`.
+
 ## [0.6.1] - 2026-07-10
 
 ### Security
