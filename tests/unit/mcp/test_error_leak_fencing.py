@@ -11,6 +11,7 @@ Every facade vector drives the REAL MCP tool through the FastMCP facade
 from __future__ import annotations
 
 import json
+import logging
 from typing import Any
 
 import pytest
@@ -216,3 +217,62 @@ async def test_diagnostics_tool_sanitizes_last_error_both_mirrors(
         assert not _has_forbidden(status["last_error"])
         assert "‮" not in status["last_error"]
         assert "\x00" not in status["last_error"]
+
+
+# --- FastMCP's OWN arg-validation log must not record raw caller input --------------
+
+
+async def test_fastmcp_validation_log_scrubs_caller_input(caplog: pytest.LogCaptureFixture) -> None:
+    """FastMCP logs the full pydantic validation error (rejected caller input) at
+    server.py BEFORE our middleware sanitizes the frame. The scrubber must keep
+    that caller-controlled value out of the log record."""
+    from gencc_link.logging_config import _FastMCPLogScrubber
+
+    marker = "delete_everything_marker‮\x00"
+    server_logger = logging.getLogger("fastmcp.server.server")
+    scrubber = _FastMCPLogScrubber()
+    server_logger.addFilter(scrubber)
+    try:
+        with caplog.at_level(logging.WARNING, logger="fastmcp.server.server"):
+            # limit is int-typed; a hostile non-numeric value trips FastMCP's own
+            # argument-validation logging at server.py before the middleware runs.
+            await _call(
+                "search_genes", {"limit": marker}, service=_RaisingService(NotFoundError("unused"))
+            )
+    finally:
+        server_logger.removeFilter(scrubber)
+
+    records = [r for r in caplog.records if r.name == "fastmcp.server.server"]
+    assert records, "expected FastMCP to log the argument-validation failure"
+    for record in records:
+        rendered = record.getMessage()
+        assert "delete_everything_marker" not in rendered
+        assert not _has_forbidden(rendered)
+        assert record.exc_info is None
+        assert record.exc_text is None
+        assert "detail suppressed" in rendered
+    # nothing anywhere in the captured fastmcp.server.server text leaked the input
+    blob = "\n".join(r.getMessage() for r in records)
+    assert "delete_everything_marker" not in blob
+
+
+def test_configure_stdlib_logging_installs_scrubber_once() -> None:
+    from gencc_link.logging_config import (
+        _FastMCPLogScrubber,
+        _install_fastmcp_log_scrubber,
+    )
+
+    server_logger = logging.getLogger("fastmcp.server.server")
+    before = [f for f in server_logger.filters if isinstance(f, _FastMCPLogScrubber)]
+    for stale in before:
+        server_logger.removeFilter(stale)
+    try:
+        _install_fastmcp_log_scrubber()
+        _install_fastmcp_log_scrubber()  # idempotent
+        installed = [f for f in server_logger.filters if isinstance(f, _FastMCPLogScrubber)]
+        assert len(installed) == 1
+    finally:
+        for f in [f for f in server_logger.filters if isinstance(f, _FastMCPLogScrubber)]:
+            server_logger.removeFilter(f)
+        for f in before:
+            server_logger.addFilter(f)

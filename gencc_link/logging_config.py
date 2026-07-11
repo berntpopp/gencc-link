@@ -25,6 +25,42 @@ def _add_static_fields(_logger: Any, _name: str, event_dict: dict[str, Any]) -> 
     return event_dict
 
 
+# FastMCP logs the COMPLETE pydantic argument-validation error -- the rejected,
+# caller-controlled input (incl. hostile control/zero-width/bidi/NUL code points)
+# via ``cause.errors(include_url=False)`` -- and the caller-requested tool name at
+# ``fastmcp/server/server.py`` BEFORE our InputValidationMiddleware can sanitize
+# the caller-facing frame. That caller input reaches the stderr handler through the
+# record's ``msg``/``args`` (and any ``exc_info``/``exc_text`` traceback). Scrub it.
+_FASTMCP_SERVER_LOGGER = "fastmcp.server.server"
+
+
+class _FastMCPLogScrubber(logging.Filter):
+    """Replace every ``fastmcp.server.server`` record with fixed, input-free
+    metadata and clear ``args``/``exc_info``/``exc_text``.
+
+    Keeps caller-controlled input out of every log sink (M3 no-PII invariant),
+    whatever FastMCP's exact log wording. The structured, sanitized failure still
+    reaches the caller via the middleware ``invalid_input`` envelope, and the
+    ``gencc_link.*`` application logs carry the operational signal.
+    """
+
+    _FIXED = "fastmcp tool-call error (detail suppressed to keep caller input out of logs)"
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        record.msg = self._FIXED
+        record.args = ()
+        record.exc_info = None
+        record.exc_text = None
+        return True
+
+
+def _install_fastmcp_log_scrubber() -> None:
+    """Attach the scrubber to the ``fastmcp.server.server`` logger (idempotent)."""
+    logger = logging.getLogger(_FASTMCP_SERVER_LOGGER)
+    if not any(isinstance(f, _FastMCPLogScrubber) for f in logger.filters):
+        logger.addFilter(_FastMCPLogScrubber())
+
+
 def configure_stdlib_logging() -> None:
     """Configure root stdlib logging to emit on stderr."""
     root_logger = logging.getLogger()
@@ -47,6 +83,9 @@ def configure_stdlib_logging() -> None:
         "mcp": "INFO" if is_debug else "WARNING",
     }.items():
         logging.getLogger(name).setLevel(getattr(logging, level))
+
+    # Keep caller-controlled argument-validation detail out of FastMCP's own logs.
+    _install_fastmcp_log_scrubber()
 
 
 def configure_structlog() -> None:
