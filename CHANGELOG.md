@@ -5,6 +5,27 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.2] - 2026-07-11
+
+### Security
+
+- **Guard the FastMCP-core not-found reflection surface.** FastMCP core (pinned
+  `>=3.4.4,<4.0.0`) reflected the caller's OWN requested tool name, resource URI,
+  or prompt name -- with any control/zero-width/bidi/NUL code points -- back to
+  the caller and to logs BEFORE backend middleware ran (an unknown-tool
+  `Unknown tool: '<name>'` result, an unknown-resource `Unknown resource: '<uri>'`
+  JSON-RPC error, an `Unknown prompt: '<name>'` error, and `Tool cache miss` /
+  `Handler called` / `Failed to validate request` log lines). A new
+  `gencc_link/mcp/notfound_guard.py` closes it with fixed, input-free messages
+  built from constants only: a registry preflight in `on_call_tool` (unknown tool
+  -> fixed name-free `not_found` envelope, no `_meta.tool` echo), a fixed URI-free
+  `on_read_resource` boundary, an outermost protocol-handler backstop for the
+  unknown-tool return path and the unknown-prompt/resource dispatch errors, and a
+  validation-log scrub filter attached to the FastMCP/MCP-SDK loggers (and their
+  non-propagating handlers) so no caller-supplied name/URI reaches a log sink.
+  Caller self-reflection surface (lower risk than upstream injection); research
+  use only.
+
 ## [0.7.1] - 2026-07-11
 
 ### Security
