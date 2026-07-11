@@ -27,6 +27,7 @@ from gencc_link.exceptions import (
     QuotaExceededError,
 )
 from gencc_link.mcp.next_commands import recovery_commands
+from gencc_link.mcp.untrusted_content import UntrustedTextLimitError
 
 logger = logging.getLogger(__name__)
 
@@ -105,6 +106,10 @@ def _classify(exc: BaseException) -> tuple[str, str, bool]:
             exc.message,
             exc.error_code in {"rate_limited", "upstream_unavailable"},
         )
+    if isinstance(exc, UntrustedTextLimitError):
+        # Response-Envelope v1.1: a fenced-object ceiling was exceeded (DoS
+        # backstop). This is a typed limit error, never a masked internal_error.
+        return "untrusted_text_limit_exceeded", str(exc), False
     if isinstance(exc, QuotaExceededError):
         return "rate_limited", "GenCC download quota exceeded. Try again later.", True
     if isinstance(exc, DownloadError):
@@ -132,7 +137,12 @@ def _classify(exc: BaseException) -> tuple[str, str, bool]:
 def _recovery_action(error_code: str, retryable: bool) -> str:
     if retryable:
         return "retry_backoff"
-    if error_code in {"invalid_input", "not_found", "ambiguous_query"}:
+    if error_code in {
+        "invalid_input",
+        "not_found",
+        "ambiguous_query",
+        "untrusted_text_limit_exceeded",
+    }:
         return "reformulate_input"
     if error_code == "data_unavailable":
         return "build_database"

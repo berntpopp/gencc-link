@@ -140,6 +140,25 @@ async def test_assertion_full_mode_is_deduplicated(mcp_client) -> None:
         assert dropped not in row
 
 
+async def test_assertion_full_mode_notes_is_a_fenced_typed_object(mcp_client) -> None:
+    """v1.1 untrusted-text: a populated submission note is typed data at the
+    live MCP boundary, not a bare string (SGC-100001 carries a real note)."""
+    result = await mcp_client.call_tool(
+        "get_gene_disease_assertion",
+        {"gene_symbol": "SKI", "disease": "MONDO:0008426", "response_mode": "full"},
+    )
+    d = result.structured_content
+    noted = next(s for s in d["submissions"] if s["sgc_id"] == "SGC-100001")
+    assert noted["notes"]["kind"] == "untrusted_text"
+    assert noted["notes"]["text"] == "Curated from multiple unrelated families."
+    assert noted["notes"]["provenance"]["source"] == "gencc"
+    assert noted["notes"]["provenance"]["record_id"] == "SGC-100001"
+    assert noted["notes"]["raw_sha256"]
+    # a note-free submission in the same pair stays null, not a fenced object
+    unnoted = next(s for s in d["submissions"] if s["sgc_id"] != "SGC-100001")
+    assert unnoted["notes"] is None
+
+
 async def test_find_curations_success(mcp_client) -> None:
     result = await mcp_client.call_tool("find_curations", {"has_conflict": True})
     data = result.structured_content

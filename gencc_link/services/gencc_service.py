@@ -12,6 +12,7 @@ from typing import Any
 
 from gencc_link.data.base import GenCCRepositoryProtocol
 from gencc_link.exceptions import AmbiguousQueryError, InvalidInputError, NotFoundError
+from gencc_link.mcp.untrusted_content import UntrustedText, enforce_untrusted_text_limits
 from gencc_link.models import BuildMeta
 from gencc_link.models.enums import RESPONSE_MODES, ResponseMode
 from gencc_link.services import shaping
@@ -412,7 +413,17 @@ class GenCCService:
             submissions = self._repo.get_submissions(
                 gene_summary.gene_curie, disease_summary.disease_curie
             )
-            payload["submissions"] = [shaping.submission_dict(s) for s in submissions]
+            # get_gene_disease_assertion is a single-assertion tool: submissions
+            # are bounded by the number of submitting orgs on one gene-disease
+            # pair (fleet DB observed max = 12), so 128 is the tool's real cap,
+            # not an inflated allowance (fleet Object-count constraint). All
+            # fenced objects the whole response emits are aggregated into one
+            # enforce call, response-wide, not per-record.
+            fenced_notes: list[UntrustedText] = []
+            payload["submissions"] = [
+                shaping.submission_dict(s, fenced_notes=fenced_notes) for s in submissions
+            ]
+            enforce_untrusted_text_limits(fenced_notes, max_objects=128)
         return payload
 
     # --- find / list ----------------------------------------------------

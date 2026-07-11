@@ -10,6 +10,7 @@ from __future__ import annotations
 import re
 from typing import Any
 
+from gencc_link.mcp.untrusted_content import UntrustedText, fence_untrusted_text
 from gencc_link.models import (
     DiseaseSummary,
     GeneDiseaseAssertion,
@@ -206,7 +207,9 @@ def submitter_dict(s: SubmitterSummary) -> dict[str, Any]:
     }
 
 
-def submission_dict(s: SubmissionRecord) -> dict[str, Any]:
+def submission_dict(
+    s: SubmissionRecord, *, fenced_notes: list[UntrustedText] | None = None
+) -> dict[str, Any]:
     """Shape a raw submission row as *raw-extras only* (full-detail view).
 
     In full mode the harmonized per-submitter fields (classification, MOI,
@@ -216,7 +219,22 @@ def submission_dict(s: SubmissionRecord) -> dict[str, Any]:
     unharmonized original disease, free-text ``notes``, and the per-row
     classification/MOI/pmids that let a reader see divergent submissions from one
     submitter. Correlate a row back to a submitter via ``submitter_title``.
+
+    ``notes`` is externally sourced free text (a submitting organization's
+    intake-form comment) and is a v1.1 untrusted-text surface: it is emitted as
+    the typed ``UntrustedText`` object (kind/text/provenance/raw_sha256), never
+    a bare string, and never duplicated in a sibling field. ``notes`` is
+    nullable; a missing note stays ``None`` rather than being wrapped. The
+    stable GenCC submission id (``sgc_id``) is the fence's ``record_id``. When
+    ``fenced_notes`` is given, the fenced object (pre-JSON-dump) is appended so
+    the caller can enforce the response-wide v1.1 limits.
     """
+    notes_value: dict[str, Any] | None = None
+    if s.notes is not None:
+        fenced = fence_untrusted_text(s.notes, source="gencc", record_id=s.sgc_id)
+        if fenced_notes is not None:
+            fenced_notes.append(fenced)
+        notes_value = fenced.model_dump(mode="json")
     return {
         "sgc_id": s.sgc_id,
         "submitter_title": s.submitter_title,
@@ -227,7 +245,7 @@ def submission_dict(s: SubmissionRecord) -> dict[str, Any]:
         "version_number": s.version_number,
         "submitted_run_date": s.submitted_run_date,
         "pmids": s.pmids,
-        "notes": s.notes,
+        "notes": notes_value,
     }
 
 

@@ -186,7 +186,12 @@ class TestSummaryDicts:
         out = shaping.submission_dict(rec)
         # Raw-extras kept (not represented in submitters[] / the parent).
         assert out["sgc_id"] == "SGC-100001"
-        assert out["notes"] == "Some notes."
+        # notes is externally sourced free text: v1.1 untrusted_text object,
+        # never a bare string (Response-Envelope Standard v1.1).
+        assert out["notes"]["kind"] == "untrusted_text"
+        assert out["notes"]["text"] == "Some notes."
+        assert out["notes"]["provenance"]["source"] == "gencc"
+        assert out["notes"]["provenance"]["record_id"] == "SGC-100001"
         assert out["pmids"] == ["22772368"]
         assert out["disease_original_curie"] == "OMIM:182212"
         assert out["classification_title"] == "Definitive"

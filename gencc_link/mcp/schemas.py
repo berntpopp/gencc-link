@@ -60,6 +60,38 @@ _TRUNCATION = {
     "additionalProperties": True,
 }
 
+# Response-Envelope Standard v1.1: externally sourced free text (e.g. a raw
+# GenCC submission's ``notes``) is emitted as this typed object, never a bare
+# string. ``kind`` is a real schema literal (``const``), matching the pydantic
+# ``Literal["untrusted_text"]`` in ``gencc_link.mcp.untrusted_content.UntrustedText``.
+_UNTRUSTED_TEXT: dict[str, Any] = {
+    "type": "object",
+    "properties": {
+        "kind": {"const": "untrusted_text"},
+        "text": _STR,
+        "provenance": {
+            "type": "object",
+            "properties": {"source": _STR, "record_id": _STR, "retrieved_at": _STR},
+            "required": ["source", "record_id", "retrieved_at"],
+            "additionalProperties": True,
+        },
+        "raw_sha256": _STR,
+    },
+    "required": ["kind", "text", "provenance", "raw_sha256"],
+    "additionalProperties": True,
+}
+_UNTRUSTED_TEXT_OR_NULL: dict[str, Any] = {"anyOf": [_UNTRUSTED_TEXT, {"type": "null"}]}
+
+# One row of get_gene_disease_assertion's response_mode=full raw-extras
+# submissions[] array; the only property with a fixed shape is the fenced
+# `notes` (v1.1 untrusted_text), everything else stays permissive.
+_SUBMISSION_ITEM: dict[str, Any] = {
+    "type": "object",
+    "properties": {"notes": _UNTRUSTED_TEXT_OR_NULL},
+    "additionalProperties": True,
+}
+_SUBMISSIONS_ARRAY: dict[str, Any] = {"type": "array", "items": _SUBMISSION_ITEM}
+
 # Fields shared by success and error envelopes (all optional but ``success``).
 _BASE_PROPS: dict[str, Any] = {
     "success": _BOOL,
@@ -104,7 +136,7 @@ GENES_CURATIONS_SCHEMA = tool_output_schema(
     unresolved=_OBJ_ARRAY,
 )
 DISEASES_CURATIONS_SCHEMA = GENES_CURATIONS_SCHEMA
-ASSERTION_SCHEMA = tool_output_schema(assertion=_OBJ, submissions=_OBJ_ARRAY)
+ASSERTION_SCHEMA = tool_output_schema(assertion=_OBJ, submissions=_SUBMISSIONS_ARRAY)
 FIND_CURATIONS_SCHEMA = tool_output_schema(
     count=_INT, total=_INT, filters=_OBJ, results=_OBJ_ARRAY, truncated=_TRUNCATION
 )

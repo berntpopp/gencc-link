@@ -20,6 +20,7 @@ from gencc_link.mcp.envelope import (
     run_mcp_tool,
     set_data_release,
 )
+from gencc_link.mcp.untrusted_content import UntrustedTextLimitError
 
 
 def _raiser(exc: Exception):
@@ -67,6 +68,11 @@ class TestErrorClassification:
             (QuotaExceededError("quota"), "rate_limited", "retry_backoff"),
             (DownloadError("net"), "upstream_unavailable", "retry_backoff"),
             (RuntimeError("boom"), "internal_error", "switch_tool"),
+            (
+                UntrustedTextLimitError("too many fenced objects"),
+                "untrusted_text_limit_exceeded",
+                "reformulate_input",
+            ),
         ],
     )
     async def test_codes(self, exc: Exception, code: str, recovery: str) -> None:

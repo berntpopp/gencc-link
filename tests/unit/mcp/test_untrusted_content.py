@@ -14,22 +14,23 @@ from gencc_link.mcp.untrusted_content import (
 
 
 def test_fence_normalizes_and_removes_forbidden_controls() -> None:
-    raw = "Café\x00​‮\nBRCA1"
+    raw = "Cafe\u0301\x00\u200b\u202e\nBRCA1"
     fenced = fence_untrusted_text(raw, source="gencc", record_id="SGC-100001")
+
     assert fenced.kind == "untrusted_text"
-    assert fenced.text == "Café\nBRCA1"
+    assert fenced.text == "Caf\u00e9\nBRCA1"
     assert fenced.raw_sha256 == hashlib.sha256(raw.encode("utf-8")).hexdigest()
     assert fenced.provenance.source == "gencc"
     assert fenced.provenance.record_id == "SGC-100001"
 
 
 def test_fence_preserves_tabs_newlines_and_scientific_symbols() -> None:
-    raw = "p.Gly12Asp\tΔG = −1.2 kcal/mol\r\n"
-    assert fence_untrusted_text(raw, source="gencc", record_id="SGC-100001").text == raw
+    raw = "p.Gly12Asp\t\u0394G = \u22121.2 kcal/mol\r\n"
+    assert fence_untrusted_text(raw, source="gencc", record_id="SGC-100002").text == raw
 
 
 def test_limits_reject_oversized_object() -> None:
-    big = fence_untrusted_text("x" * 10, source="gencc", record_id="SGC-100001")
+    big = fence_untrusted_text("x" * 10, source="gencc", record_id="SGC-100003")
     with pytest.raises(UntrustedTextLimitError):
         enforce_untrusted_text_limits([big], max_text_bytes=5)
 
@@ -42,7 +43,7 @@ def test_limits_reject_too_many_objects() -> None:
 
 def test_limits_allow_a_large_object_count_under_a_generous_ceiling() -> None:
     """A legitimately large batch of fenced objects must not raise under a
-    generous ceiling — proves the DoS backstop is a real ceiling, not a
+    generous ceiling -- proves the DoS backstop is a real ceiling, not a
     disguised low default (fleet Object-count constraint)."""
     objs = [fence_untrusted_text("x", source="gencc", record_id=str(i)) for i in range(200)]
     enforce_untrusted_text_limits(objs, max_objects=10_000)
