@@ -9,6 +9,7 @@ from gencc_link.mcp.capabilities import build_capabilities
 from gencc_link.mcp.envelope import McpErrorContext, run_mcp_tool
 from gencc_link.mcp.schemas import CAPABILITIES_SCHEMA, DIAGNOSTICS_SCHEMA
 from gencc_link.mcp.service_adapters import get_gencc_service
+from gencc_link.mcp.untrusted_content import sanitize_message
 
 if TYPE_CHECKING:
     from fastmcp import FastMCP
@@ -67,7 +68,14 @@ def register_discovery_tools(mcp: FastMCP) -> None:
                 "scheduler_running": scheduler is not None,
             }
             if scheduler is not None:
-                refresh["status"] = scheduler.status
+                status = scheduler.status
+                # Defense in depth: last_error is severed to a fixed classification
+                # at storage, but any string surfaced here is code-point sanitized so
+                # no forbidden control/zero-width/bidi/NUL char can reach the caller.
+                last_error = status.get("last_error")
+                if isinstance(last_error, str):
+                    status["last_error"] = sanitize_message(last_error)
+                refresh["status"] = status
             quota: dict[str, Any] | None
             try:
                 from gencc_link.ingest.downloader import download_quota_status

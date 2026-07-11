@@ -31,6 +31,13 @@ if TYPE_CHECKING:
 
     from gencc_link.config import GenCCDataConfigModel
 
+# Fixed, low-cardinality classifications stored as ``last_error`` (surfaced by the
+# get_gencc_diagnostics MCP tool). A raw ``str(exc)`` is never stored: it can carry
+# the export URL, filesystem paths, or transport detail into a caller-visible field.
+_REFRESH_ERROR_QUOTA = "quota_exceeded"
+_REFRESH_ERROR_DOWNLOAD = "download_failed"
+_REFRESH_ERROR_INTERNAL = "internal_error"
+
 # The currently active scheduler (for diagnostics), set on start, cleared on stop.
 _ACTIVE: RefreshScheduler | None = None
 
@@ -122,20 +129,25 @@ class RefreshScheduler:
 
         try:
             result = await asyncio.to_thread(rebuild, self._config, force=False)
-        except QuotaExceededError as exc:
-            self._record(error=f"quota: {exc}")
+        except QuotaExceededError:
+            # Store a FIXED classification, not str(exc): the raw download exception
+            # can carry the export URL / transport detail, and last_error is surfaced
+            # by the get_gencc_diagnostics MCP tool. The raw value is not logged either
+            # (M3 no-PII-in-logs invariant).
+            self._record(error=_REFRESH_ERROR_QUOTA)
             if self._logger:
-                self._logger.warning("refresh skipped: quota exceeded", error=str(exc))
+                self._logger.warning("refresh skipped: quota exceeded")
             return
-        except DownloadError as exc:
-            self._record(error=f"download: {exc}")
+        except DownloadError:
+            self._record(error=_REFRESH_ERROR_DOWNLOAD)
             if self._logger:
-                self._logger.warning("refresh failed: download error", error=str(exc))
+                self._logger.warning("refresh failed: download error")
             return
         except Exception as exc:  # defensive: a refresh must never kill the loop
-            self._record(error=f"{type(exc).__name__}: {exc}")
+            self._record(error=_REFRESH_ERROR_INTERNAL)
             if self._logger:
-                self._logger.error("refresh failed", error=str(exc))
+                # Only the stable exception class name -- never str(exc).
+                self._logger.error("refresh failed", error_type=type(exc).__name__)
             return
 
         if result.changed:

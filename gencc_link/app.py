@@ -38,7 +38,9 @@ async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
     try:
         await asyncio.to_thread(ensure_database, cfg)
     except Exception as exc:  # non-fatal: serve, report data_unavailable until ready
-        logger.warning("database not ready at startup", error=str(exc))
+        # Log only the stable exception class -- str(exc) can carry the local DB
+        # path / upstream URL (M3 no-PII-in-logs invariant).
+        logger.warning("database not ready at startup", error_type=type(exc).__name__)
 
     scheduler = build_scheduler(cfg, logger)
     if scheduler is not None:

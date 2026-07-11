@@ -4,12 +4,21 @@ from __future__ import annotations
 
 from typing import Any
 
+from gencc_link.mcp.untrusted_content import sanitize_message
+
 _MAX_NEXT_COMMANDS = 5
 
 
 def cmd(tool: str, **arguments: Any) -> dict[str, Any]:
     """One ready-to-call next step."""
     return {"tool": tool, "arguments": arguments}
+
+
+def _clean(value: Any) -> str:
+    """Strip forbidden code points from a caller-supplied value echoed into an
+    error-path recovery command's arguments (a ``next_commands[*].arguments.*``
+    field the model may act on)."""
+    return sanitize_message(str(value))
 
 
 def gene_kwargs(value: str) -> dict[str, str]:
@@ -122,28 +131,31 @@ def recovery_commands(
     """
     # The gene-bearing tools now carry the canonical gene_symbol/hgnc_id pair in
     # their error context; fold them (and any legacy `gene`) into one input value.
-    gene_in = arguments.get("hgnc_id") or arguments.get("gene_symbol") or arguments.get("gene")
+    gene_raw = arguments.get("hgnc_id") or arguments.get("gene_symbol") or arguments.get("gene")
+    gene_in = _clean(gene_raw) if gene_raw else None
+    disease_in = _clean(arguments["disease"]) if arguments.get("disease") else None
+    query_in = _clean(arguments["query"]) if arguments.get("query") else None
     if error_code == "not_found":
         if tool == "get_gene_curations" and gene_in:
             return [cmd("search_genes", query=gene_in)]
-        if tool == "get_disease_curations" and arguments.get("disease"):
-            return [cmd("search_diseases", query=arguments["disease"])]
+        if tool == "get_disease_curations" and disease_in:
+            return [cmd("search_diseases", query=disease_in)]
         if tool == "get_gene_disease_assertion":
             out: list[dict[str, Any]] = []
             if gene_in:
                 out.append(cmd("get_gene_curations", **gene_kwargs(gene_in)))
-            if arguments.get("disease"):
-                out.append(cmd("get_disease_curations", disease=arguments["disease"]))
+            if disease_in:
+                out.append(cmd("get_disease_curations", disease=disease_in))
             return out
-        if tool == "resolve_identifier" and arguments.get("query"):
+        if tool == "resolve_identifier" and query_in:
             return [
-                cmd("search_genes", query=arguments["query"]),
-                cmd("search_diseases", query=arguments["query"]),
+                cmd("search_genes", query=query_in),
+                cmd("search_diseases", query=query_in),
             ]
-    if error_code == "ambiguous_query" and tool == "resolve_identifier" and arguments.get("query"):
+    if error_code == "ambiguous_query" and tool == "resolve_identifier" and query_in:
         return [
-            cmd("get_gene_curations", **gene_kwargs(arguments["query"])),
-            cmd("get_disease_curations", disease=arguments["query"]),
+            cmd("get_gene_curations", **gene_kwargs(query_in)),
+            cmd("get_disease_curations", disease=query_in),
         ]
     if error_code == "invalid_input":
         if field == "submitter":
