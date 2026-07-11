@@ -5,6 +5,22 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.1] - 2026-07-11
+
+### Security
+
+- **Defense in depth: caller-visible error messages and diagnostics are
+  sanitized and severed of exception detail.** Every error-envelope
+  `message`/`field_errors` and diagnostics string is stripped of the fence's
+  forbidden control/zero-width/bidi/NUL code points; upstream API error-body
+  text is never echoed into an MCP message (download/quota errors surface fixed,
+  body-free messages), and the pydantic argument-validation frame maps the error
+  type to a fixed reason with a redacted field name instead of echoing the
+  rejected input. The refresh `last_error` surfaced by `get_gencc_diagnostics`
+  is stored as a fixed classification (`quota_exceeded`/`download_failed`/
+  `internal_error`) rather than `str(exc)`, and the FastMCP validation log no
+  longer records raw caller input. Research use only.
+
 ## [0.7.0] - 2026-07-11
 
 ### Security
