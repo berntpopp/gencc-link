@@ -43,6 +43,23 @@ class UntrustedText(BaseModel):
     raw_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
 
 
+MAX_MESSAGE_CHARS = 280
+
+
+def sanitize_message(text: str) -> str:
+    """Strip the fence's forbidden control/zero-width/bidi/NUL code points + length-cap.
+
+    Applied to every caller-visible message/error/diagnostics string so a hostile
+    upstream (or a caller-influenced 4xx/5xx body) can never smuggle control,
+    zero-width, bidirectional, or NUL code points into an error frame. Caller-visible
+    messages are server-authored guidance data; attacker-influenceable prose (upstream
+    response bodies, ``str(exc)`` of an upstream/API error) is additionally kept out of
+    them at the source. Reuses the fence's ``FORBIDDEN_CODEPOINTS`` (never redefines it).
+    """
+    clean = "".join(char for char in text if ord(char) not in FORBIDDEN_CODEPOINTS)
+    return clean[:MAX_MESSAGE_CHARS]
+
+
 def fence_untrusted_text(raw: str, *, source: str, record_id: str) -> UntrustedText:
     """Normalize external prose and remove only the ratified control characters."""
     normalized = unicodedata.normalize("NFC", raw)
