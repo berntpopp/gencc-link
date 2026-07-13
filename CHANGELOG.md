@@ -5,6 +5,15 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.4] - 2026-07-13
+
+### Build
+
+- Re-pin the central container CI and release callers to the fixed GeneFoundry
+  release standard (`58d011d`), which corrects seven latent defects in the
+  reusable workflows. No runtime or MCP surface changes. Research use only; not
+  for clinical decision support.
+
 ## [0.7.3] - 2026-07-13
 
 ### Security
