@@ -32,7 +32,7 @@ services:
       # boot (AUTO_BOOTSTRAP as a lazy fallback) and the in-app scheduler
       # conditionally refreshes it every 24h (304 = no-op). The named volume
       # keeps the DB across restarts.
-      - GENCC_LINK_DATA__DATA_DIR=/app/data
+      - GENCC_LINK_DATA__DATA_DIR=/data
       - GENCC_LINK_DATA__AUTO_BOOTSTRAP=true
       - GENCC_LINK_DATA__REFRESH_ENABLED=true
       - GENCC_LINK_DATA__REFRESH_INTERVAL_HOURS=24
@@ -50,11 +50,11 @@ services:
     restart: unless-stopped
     read_only: true
     tmpfs:
-      # TMPDIR=/tmp/gencc-link (set in the image) - download/build scratch space.
-      - /tmp/gencc-link:rw,noexec,nosuid,size=256m,mode=1777
+      # TMPDIR=/tmp (set in the image) - download/build scratch space.
+      - /tmp:rw,noexec,nosuid,size=256m,mode=1777
     volumes:
       # Persist the built ~24MB SQLite database across container restarts.
-      - gencc-data:/app/data
+      - gencc-data:/data
     networks:
       - gencc_link_internal_net
       - npm_proxy_network
