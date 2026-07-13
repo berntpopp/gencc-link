@@ -28,10 +28,10 @@ and container-to-container routing predictable.
 
 GenCC-Link serves a local SQLite database built from the weekly GenCC bulk
 export. The database is **not** baked into the image; it is built into the
-directory named by `GENCC_LINK_DATA__DATA_DIR` (default `/app/data` in the
+directory named by `GENCC_LINK_DATA__DATA_DIR` (default `/data` in the
 container).
 
-- `docker-compose.yml` mounts the named volume `gencc-data` at `/app/data`, so
+- `docker-compose.yml` mounts the named volume `gencc-data` at `/data`, so
   the built ~24MB database persists across container restarts and is only
   downloaded once.
 - With `GENCC_LINK_DATA__AUTO_BOOTSTRAP=true` (the default), the server
@@ -102,7 +102,7 @@ The Dockerfile uses a multi-stage `uv` build:
 - the runtime stage copies only the virtual environment and the required
   application files,
 - the runtime user is non-root (`app`),
-- the data directory (`/app/data`) is created and owned by `app`.
+- the data directory (`/data`) is created and owned by `app`.
 
 No secrets are copied into the image. Pass environment-specific settings through
 Compose `env_file` or environment variables at runtime.
