@@ -24,14 +24,14 @@ services:
     depends_on:
       - gencc-link
     environment:
-      GENCC_LINK_DATA__DATA_DIR: /app/data
+      GENCC_LINK_DATA__DATA_DIR: /data
       # The sidecar may build the database if the volume is empty.
       GENCC_LINK_DATA__AUTO_BOOTSTRAP: "true"
       GENCC_LINK_LOG_FORMAT: json
       # Seconds between conditional refreshes (default daily). 304s are quota-free.
       REFRESH_INTERVAL_SECONDS: "86400"
     volumes:
-      - gencc-data:/app/data
+      - gencc-data:/data
     # Bypass the server entrypoint: run a refresh loop instead of the server.
     entrypoint: ["/bin/sh", "-c"]
     command:
