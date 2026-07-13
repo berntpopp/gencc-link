@@ -33,15 +33,23 @@ RUN uv sync --frozen --no-dev --active --no-install-project
 FROM python:3.14-slim@sha256:b877e50bd90de10af8d82c57a022fc2e0dc731c5320d762a27986facfc3355c1 AS production
 
 
-# Runtime identity. The deploy builds from a source checkout rather than pulling a
-# registry image, so there is no immutable OCI digest to pin; stamping the exact
-# commit into the image is what lets an operator prove the running container was
-# built from the revision the router's release inventory pins, instead of trusting
-# a moving `main`. VCS_REF is unprefixed on purpose: a <SERVICE>_-prefixed name
-# would land in the pydantic settings namespace.
-ARG VCS_REF=unknown
-LABEL org.opencontainers.image.source="https://github.com/berntpopp/gencc-link" \
-      org.opencontainers.image.revision="${VCS_REF}"
+# Public release identity. Release automation supplies all three values from the
+# validated source tag/commit and build record; defaults identify a local build.
+ARG APP_VERSION=0.0.0
+ARG VCS_REF=0000000000000000000000000000000000000000
+ARG BUILD_DATE=1970-01-01T00:00:00Z
+LABEL org.opencontainers.image.title="GenCC-Link" \
+      org.opencontainers.image.description="FastAPI and MCP server for GenCC gene-disease validity data" \
+      org.opencontainers.image.source="https://github.com/berntpopp/gencc-link" \
+      org.opencontainers.image.url="https://github.com/berntpopp/gencc-link" \
+      org.opencontainers.image.documentation="https://github.com/berntpopp/gencc-link#readme" \
+      org.opencontainers.image.version="${APP_VERSION}" \
+      org.opencontainers.image.revision="${VCS_REF}" \
+      org.opencontainers.image.created="${BUILD_DATE}" \
+      org.opencontainers.image.licenses="MIT" \
+      org.opencontainers.image.vendor="GeneFoundry" \
+      org.genefoundry.research-use-only="true" \
+      org.genefoundry.data-policy="code-only"
 ENV VCS_REF="${VCS_REF}"
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
@@ -52,7 +60,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     GENCC_LINK_PORT=8000 \
     GENCC_LINK_TRANSPORT=unified \
     GENCC_LINK_MCP_PATH=/mcp \
-    GENCC_LINK_DATA__DATA_DIR=/app/data \
+    GENCC_LINK_DATA__DATA_DIR=/data \
     # The entrypoint builds the database before the server starts, so the
     # request path never triggers a lazy build. The in-app scheduler then keeps
     # it fresh; disable it and use the cron sidecar / k8s CronJob if you prefer
@@ -60,7 +68,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     GENCC_LINK_DATA__AUTO_BOOTSTRAP=false \
     GENCC_LINK_DATA__REFRESH_ENABLED=true \
     GENCC_LINK_DATA__REFRESH_INTERVAL_HOURS=24 \
-    TMPDIR=/tmp/gencc-link
+    TMPDIR=/tmp
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
@@ -70,8 +78,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 RUN groupadd --system app && \
     useradd --system --gid app --home /home/app --create-home app && \
-    mkdir -p /tmp/gencc-link /app/data && \
-    chown -R app:app /tmp/gencc-link /app/data /home/app
+    mkdir -p /tmp /data && \
+    chown -R app:app /tmp /data /home/app
 
 COPY --from=builder /opt/venv /opt/venv
 
@@ -87,10 +95,10 @@ USER app
 
 EXPOSE 8000
 
-# The built SQLite database lives under GENCC_LINK_DATA__DATA_DIR (/app/data).
+# The built SQLite database lives under GENCC_LINK_DATA__DATA_DIR (/data).
 # Mount a volume there so the ~24MB database persists across container restarts;
 # the entrypoint builds it once on startup and the in-app scheduler refreshes it.
-VOLUME ["/app/data"]
+VOLUME ["/data"]
 
 # start-period covers the entrypoint's first build (download + ~8s build) before
 # the server begins serving; the server itself starts in well under a second.

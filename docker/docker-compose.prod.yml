@@ -1,75 +1,68 @@
-# Production docker-compose override.
-# Usage:
+# Production overlay for gencc-link (Container & Deployment Hardening Standard v1).
+#
+#   GENCC_LINK_IMAGE=ghcr.io/berntpopp/gencc-link@sha256:<digest> \
 #   docker compose -f docker/docker-compose.yml -f docker/docker-compose.prod.yml up -d
 
 services:
   gencc-link:
-    # Production-specific environment variables.
+    build: !reset null
+    image: ${GENCC_LINK_IMAGE:?Set GENCC_LINK_IMAGE to ghcr.io/berntpopp/gencc-link@sha256:<digest>}
+    pull_policy: missing
+    container_name: !reset null
+    env_file: !reset []
+    ports: !reset []
+    expose:
+      - "8000"
     environment:
+      GF_HEALTHCHECK_HOST: localhost
+      GENCC_LINK_HOST: 0.0.0.0
+      GENCC_LINK_PORT: 8000
       GENCC_LINK_TRANSPORT: unified
+      GENCC_LINK_MCP_PATH: /mcp
       GENCC_LINK_LOG_LEVEL: INFO
       GENCC_LINK_LOG_FORMAT: json
-      GENCC_LINK_RELOAD: "false"
       GENCC_LINK_ALLOWED_HOSTS: '["localhost","127.0.0.1","::1","gencc-link.genefoundry.org"]'
-      GENCC_LINK_DATA__DATA_DIR: /app/data
+      GENCC_LINK_DATA__DATA_DIR: /data
       GENCC_LINK_DATA__AUTO_BOOTSTRAP: "true"
+      GENCC_LINK_DATA__REFRESH_ENABLED: "true"
+      GENCC_LINK_DATA__REFRESH_INTERVAL_HOURS: "24"
       GENCC_LINK_DATA__CACHE_SIZE: 2000
       GENCC_LINK_DATA__CACHE_TTL: 7200
-
-    # No published host ports by default in production; front with a reverse proxy.
-    ports: !reset []
-
-    # Read-only root filesystem; writes confined to the named database volume
-    # (/app/data, inherited from the base file) and an ephemeral tmpfs. Never a
-    # writable rootfs — the GenCC SQLite DB lives only on the volume.
+    volumes: !override
+      - gencc-data:/data
     read_only: true
-    tmpfs:
-      # TMPDIR=/tmp/gencc-link (set in the image) — download/build scratch space.
-      - /tmp/gencc-link:rw,noexec,nosuid,size=256m,mode=1777
-
-    security_opt:
+    tmpfs: !override
+      - /tmp:rw,noexec,nosuid,size=256m,mode=1777
+    security_opt: !override
       - no-new-privileges:true
-    cap_drop:
+    cap_drop: !override
       - ALL
-
-    pids_limit: 256
     init: true
-
-    # Unified server (FastAPI on / and MCP on /mcp via the same port).
-    command:
-      ["python", "server.py", "--transport", "unified", "--host", "0.0.0.0", "--port", "8000"]
-
-    # Production resource hints.
+    restart: on-failure
     deploy:
       resources:
         limits:
-          memory: 1G
+          memory: 1g
           cpus: "1.0"
           pids: 256
-        reservations:
-          memory: 256M
-          cpus: "0.25"
-
-      # Production restart policy.
-      restart_policy:
-        condition: on-failure
-        delay: 5s
-        max_attempts: 3
-        window: 120s
-
-    # Enhanced health check for production. First boot builds the database, so
-    # keep a generous start period before failures count.
-    healthcheck:
-      test: ["CMD", "curl", "-f", "-H", "Host: localhost", "http://127.0.0.1:8000/health"]
+    healthcheck: !override
+      test: ["CMD", "sh", "-c", "curl -f -H \"Host: $${GF_HEALTHCHECK_HOST}\" http://localhost:8000/health"]
       interval: 20s
       timeout: 5s
       retries: 5
-      start_period: 180s
-
-    # Production logging with rotation.
     logging:
       driver: "json-file"
       options:
         max-size: "50m"
         max-file: "5"
         labels: "service=gencc-link,environment=production"
+    networks: !override
+      - default
+
+volumes: !override
+  gencc-data:
+    name: gencc-link_gencc-data
+
+networks: !override
+  default:
+    name: gencc-link_default

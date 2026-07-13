@@ -6,6 +6,10 @@ services:
       context: ..
       dockerfile: docker/Dockerfile
       target: production
+      args:
+        APP_VERSION: ${APP_VERSION:-0.0.0}
+        VCS_REF: ${VCS_REF:-0000000000000000000000000000000000000000}
+        BUILD_DATE: ${BUILD_DATE:-1970-01-01T00:00:00Z}
     container_name: gencc-link
     # Dev/local only — loopback-bound (127.0.0.1) so copying this file to a
     # server never publishes the unauthenticated backend on the public IP
@@ -32,13 +36,13 @@ services:
       #     hot-reloads it on change
       # The named volume below keeps the ~24MB database across restarts so a
       # restart re-uses it (the entrypoint's conditional request returns 304).
-      GENCC_LINK_DATA__DATA_DIR: /app/data
+      GENCC_LINK_DATA__DATA_DIR: /data
       GENCC_LINK_DATA__AUTO_BOOTSTRAP: "false"
       GENCC_LINK_DATA__REFRESH_ENABLED: "true"
       GENCC_LINK_DATA__REFRESH_INTERVAL_HOURS: "24"
     volumes:
       # Persist the built ~24MB SQLite database across container restarts.
-      - gencc-data:/app/data
+      - gencc-data:/data
     healthcheck:
       test: ["CMD", "curl", "-f", "-H", "Host: localhost", "http://127.0.0.1:8000/health"]
       interval: 30s

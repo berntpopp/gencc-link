@@ -1,0 +1,45 @@
+{
+  "schema_version": 1,
+  "dockerfile": "docker/Dockerfile",
+  "target": "production",
+  "platform": "linux/amd64",
+  "service": {
+    "compose_files": [
+      "docker/docker-compose.yml",
+      "docker/docker-compose.prod.yml"
+    ],
+    "name": "gencc-link",
+    "container_port": 8000,
+    "health_path": "/health",
+    "mcp_path": "/mcp",
+    "startup_timeout_seconds": 240
+  },
+  "data": {
+    "mode": "upstream-live",
+    "image_allowlist": [
+      "home/app/web/gencc_link/data/__init__.py",
+      "home/app/web/gencc_link/data/base.py",
+      "home/app/web/gencc_link/data/find.py",
+      "home/app/web/gencc_link/data/queries.py",
+      "home/app/web/gencc_link/data/repository.py",
+      "home/app/web/gencc_link/data/schema.sql"
+    ],
+    "egress_allowlist": [
+      "thegencc.org"
+    ],
+    "release_tag": "observed-2026.07.13",
+    "digest": "sha256:1b090422659cfeda7cc4e16dd27f9b4fcf66012138e9f91c6266b73be9a1d111",
+    "reproducible_rollback": false
+  },
+  "runtime_cache": {
+    "path": "/data",
+    "eviction": "operator-managed persistent SQLite cache rebuilt from the declared upstream live source",
+    "deletable_without_authoritative_data_loss": true
+  },
+  "definitions": {
+    "contract": "data-bound"
+  },
+  "smoke": {
+    "profile": "prepared-live-fixture"
+  }
+}
