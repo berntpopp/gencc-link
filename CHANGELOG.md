@@ -5,6 +5,20 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.5] - 2026-07-13
+
+### Build
+
+- Re-pin the central container CI and release callers to the fixed GeneFoundry
+  release standard (`86b11f7`), which states the declared data contract in the
+  signed release evidence. Previously the reusable workflow hardcoded a
+  `data-independent` contract and `data_requirements: {"mode":"none"}`, so this
+  service published a signed manifest claiming it bound to no data at all while
+  its configuration declares `data-bound` / `upstream-live`. The signed manifest
+  now states the real `upstream-live` mode, release tag, and digest, and carries
+  `reproducible_rollback: false`. No runtime or MCP surface changes. Research use
+  only; not for clinical decision support.
+
 ## [0.7.4] - 2026-07-13
 
 ### Build
