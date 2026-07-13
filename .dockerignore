@@ -1,48 +1,64 @@
-# Keep the build context small and the image free of secrets.
-# Build context is the repo root (compose `context: ..`).
+# Keep the build context small and the image free of secrets or data artifacts.
 
-# VCS
-.git
+# VCS / CI
+.git/
 .gitignore
 .gitattributes
+.github/
 
-# Virtualenvs
-.venv
-venv
-env
-
-# Python caches / build artifacts
-__pycache__
-*.py[cod]
-*.egg-info
-dist
-build
-
-# Secrets / local env — never bake into an image layer (keep examples)
+# Secrets and local env files
 .env
-.env.docker
 .env.*
+**/.env
+**/.env.*
 !.env.example
 !.env.docker.example
 docker/.env
 
-# Local data store (SQLite DB — built at runtime, not shipped in image)
-*.sqlite
-*.sqlite-*
-data
+# Virtual environments
+.venv/
+venv/
+env/
 
-# Tests, docs, coverage
-tests
-docs
-htmlcov
+# Python caches and build output
+__pycache__/
+*.py[cod]
+*.pyo
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
 .coverage
 coverage.xml
+htmlcov/
 
-# Tool caches
-.mypy_cache
-.ruff_cache
-.pytest_cache
+# Tests, docs, planning, and authoritative/runtime data
+tests/
+docs/
+.planning/
+data/
+datasets/
+corpus/
+output/
+outputs/
+*.sqlite
+*.sqlite-*
+*.db
+*.duckdb
+*.parquet
+*.vcf
+*.bcf
+*.obo
+*.owl
+*.tsv
+*.csv
+*.zst
+*.gz
+*.log
 
-# CI / editor metadata
-.github
-.pre-commit-config.yaml
+# Editor / OS metadata
+.vscode/
+.idea/
+.DS_Store
