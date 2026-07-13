@@ -30,7 +30,7 @@ COPY --from=ghcr.io/astral-sh/uv:0.8.7@sha256:1e26f9a868360eeb32500a35e05787ffff
 RUN uv sync --frozen --no-dev --active --no-install-project
 
 
-FROM python:3.14-slim@sha256:b877e50bd90de10af8d82c57a022fc2e0dc731c5320d762a27986facfc3355c1 AS production
+FROM python:3.14-slim@sha256:b877e50bd90de10af8d82c57a022fc2e0dc731c5320d762a27986facfc3355c1 AS prepared
 
 
 # Public release identity. Release automation supplies all three values from the
@@ -90,6 +90,64 @@ COPY --chown=app:app ./server.py ./mcp_server.py ./pyproject.toml ./README.md ./
 COPY --chown=app:app ./docker/entrypoint.sh /usr/local/bin/entrypoint.sh
 
 RUN /opt/venv/bin/pip install . --no-deps && chmod +x /usr/local/bin/entrypoint.sh
+
+RUN rm -rf /root/.cache/pip \
+           /usr/local/lib/python*/ensurepip \
+           /usr/local/lib/python*/site-packages/pip \
+           /usr/local/lib/python*/site-packages/pip-*.dist-info \
+           /usr/local/bin/pip /usr/local/bin/pip3 /usr/local/bin/pip3.* \
+           /opt/venv/lib/python*/site-packages/pip \
+           /opt/venv/lib/python*/site-packages/pip-*.dist-info \
+           /opt/venv/bin/pip /opt/venv/bin/pip3 /opt/venv/bin/pip3.* \
+    && find / -xdev -type d -name __pycache__ -prune -exec rm -rf '{}' + \
+    && find / -xdev -type f \( -name '*.pyc' -o -name '*.pyo' \) -delete
+RUN find / -xdev -perm /6000 -exec chmod a-s '{}' + \
+    && test -z "$(find / -xdev -perm /6000 -print -quit)"
+RUN actual="$(find / -xdev -type f -links +1 -printf '%i %p\n' | sort -k2,2)" \
+    && expected="$(printf '%s %s\n%s %s\n' \
+         "$(stat -c '%i' /usr/bin/perl)" /usr/bin/perl \
+         "$(stat -c '%i' /usr/bin/perl5.40.1)" /usr/bin/perl5.40.1 | sort -k2,2)" \
+    && { test "$actual" = "$expected" || { printf 'unexpected hardlinks:\n%s\n' "$actual"; exit 1; }; } \
+    && rm -f /usr/bin/perl5.40.1
+
+FROM scratch AS production
+COPY --from=prepared / /
+
+ARG APP_VERSION=0.0.0
+ARG VCS_REF=0000000000000000000000000000000000000000
+ARG BUILD_DATE=1970-01-01T00:00:00Z
+LABEL org.opencontainers.image.title="GenCC-Link" \
+      org.opencontainers.image.description="FastAPI and MCP server for GenCC gene-disease validity data" \
+      org.opencontainers.image.source="https://github.com/berntpopp/gencc-link" \
+      org.opencontainers.image.url="https://github.com/berntpopp/gencc-link" \
+      org.opencontainers.image.documentation="https://github.com/berntpopp/gencc-link#readme" \
+      org.opencontainers.image.version="${APP_VERSION}" \
+      org.opencontainers.image.revision="${VCS_REF}" \
+      org.opencontainers.image.created="${BUILD_DATE}" \
+      org.opencontainers.image.licenses="MIT" \
+      org.opencontainers.image.vendor="GeneFoundry" \
+      org.genefoundry.research-use-only="true" \
+      org.genefoundry.data-policy="code-only"
+ENV VCS_REF="${VCS_REF}"
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PATH="/opt/venv/bin:$PATH" \
+    PYTHONPATH="/home/app/web" \
+    GENCC_LINK_HOST=0.0.0.0 \
+    GENCC_LINK_PORT=8000 \
+    GENCC_LINK_TRANSPORT=unified \
+    GENCC_LINK_MCP_PATH=/mcp \
+    GENCC_LINK_DATA__DATA_DIR=/data \
+    # The entrypoint builds the database before the server starts, so the
+    # request path never triggers a lazy build. The in-app scheduler then keeps
+    # it fresh; disable it and use the cron sidecar / k8s CronJob if you prefer
+    # an external scheduler (see docs/data-lifecycle.md).
+    GENCC_LINK_DATA__AUTO_BOOTSTRAP=false \
+    GENCC_LINK_DATA__REFRESH_ENABLED=true \
+    GENCC_LINK_DATA__REFRESH_INTERVAL_HOURS=24 \
+    TMPDIR=/tmp
+WORKDIR /home/app/web
 
 USER app
 

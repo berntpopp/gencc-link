@@ -22,7 +22,13 @@
       "home/app/web/gencc_link/data/find.py",
       "home/app/web/gencc_link/data/queries.py",
       "home/app/web/gencc_link/data/repository.py",
-      "home/app/web/gencc_link/data/schema.sql"
+      "home/app/web/gencc_link/data/schema.sql",
+      "opt/venv/lib/python3.14/site-packages/gencc_link/data/__init__.py",
+      "opt/venv/lib/python3.14/site-packages/gencc_link/data/base.py",
+      "opt/venv/lib/python3.14/site-packages/gencc_link/data/find.py",
+      "opt/venv/lib/python3.14/site-packages/gencc_link/data/queries.py",
+      "opt/venv/lib/python3.14/site-packages/gencc_link/data/repository.py",
+      "opt/venv/lib/python3.14/site-packages/gencc_link/data/schema.sql"
     ],
     "egress_allowlist": [
       "thegencc.org"
