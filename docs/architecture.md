@@ -199,3 +199,35 @@ Conflict detection is the headline differentiator: it is precomputed into the
 `upstream_unavailable` (download), `rate_limited` (quota), `internal_error`.
 Error details are masked; the base `_meta` carries the research-use and license
 markers.
+
+## Federation and tool naming
+
+GenCC-Link is part of the **GeneFoundry** `*-link` MCP fleet, federated behind the
+[`genefoundry-router`](https://github.com/berntpopp/genefoundry-router) gateway. It
+follows **Tool-Naming & Normalization Standard v1**:
+
+- **`serverInfo.name`:** `gencc-link` — the stable identity, set on the FastMCP
+  instance.
+- **Gateway namespace token:** `gencc`. The router mounts this server with
+  `namespace="gencc"`, so its tools surface at the gateway as `gencc_<tool>`
+  (e.g. `gencc_search_genes`). Standalone MCP clients namespace them as
+  `mcp__gencc-link__<tool>`.
+- **Unprefixed leaves:** tool names are intentionally **not** server-prefixed —
+  namespacing is the gateway's job (Rule 1), so a leaf prefix would double-prefix
+  at the gateway. A CI guard ([`tests/test_tool_naming.py`](../tests/test_tool_naming.py))
+  enforces `^[a-z0-9_]{1,50}$` plus a canonical verb (`get` / `search` / `list` /
+  `resolve` / `find` / `compare` / `compute` / `map`) and a domain tag on every
+  registered tool. [`tests/unit/test_readme_tools.py`](../tests/unit/test_readme_tools.py)
+  keeps the README's tool table in lockstep with the registered surface.
+- **Canonical arguments:** `gene_symbol` (approved symbol) / `hgnc_id` (HGNC
+  CURIE) — pass exactly one to a single-gene tool; `disease` (MONDO/OMIM CURIE or
+  title); `response_mode`; `limit` / `offset`. The batch `get_genes_curations`
+  keeps a polymorphic `genes` list (symbols or HGNC CURIEs).
+
+## Built on
+
+[Model Context Protocol](https://modelcontextprotocol.io/) ·
+[FastMCP](https://github.com/jlowin/fastmcp) ·
+[FastAPI](https://fastapi.tiangolo.com/) · [Pydantic](https://pydantic.dev/), over
+data curated by the [Gene Curation Coalition](https://thegencc.org) and its
+contributing member organizations.
