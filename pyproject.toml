@@ -97,10 +97,6 @@ line-ending = "lf"
 [tool.ruff.lint.per-file-ignores]
 "tests/**/*" = ["S101", "S104", "S110", "T20", "B011", "SIM105", "SIM108", "SIM117"]
 "scripts/**/*" = ["T20"]
-# check_readme.py is copied VERBATIM from genefoundry-router into every fleet repo
-# (README Standard v1: one linter, identical everywhere). Never edit it to satisfy
-# a per-repo lint rule -- ignore the rule here instead.
-"scripts/check_readme.py" = ["T20", "B905"]
 "mcp_server.py" = ["T20"]
 "gencc_link/ingest/cli.py" = ["T20"]
 # Dynamic SQL in these modules interpolates only `?` placeholders and internal

@@ -109,7 +109,7 @@ Cite GenCC as:
 - [Usage](docs/usage.md) — canonical workflows, `response_mode`, conflict reading, citation contract, `gencc://` resources.
 - [MCP connection guide](docs/MCP_CONNECTION_GUIDE.md) — Claude Code and Claude Desktop (HTTP and stdio) configs, verification, troubleshooting.
 - [Architecture](docs/architecture.md) — why SQLite, the consensus/conflict model, transports, error taxonomy, the federation contract.
-- [Configuration](docs/configuration.md) — every `GENCC_LINK_*` variable and the Host/Origin request guard.
+- [Configuration](docs/configuration.md) — every `GENCC_LINK_*` variable (a test owns that claim), the Host/Origin request guard, and CORS.
 - [Deployment](docs/deployment.md) — Docker, Compose overlays, Kubernetes, reverse proxy, quota safety.
 - [Data lifecycle](docs/data-lifecycle.md) — build-on-startup, refresh strategies, hot reload.
 - [Changelog](CHANGELOG.md) · [AGENTS.md](AGENTS.md) — engineering conventions for agentic tools.
