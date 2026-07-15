@@ -1,4 +1,11 @@
-"""Builders for _meta.next_commands entries: {tool, arguments} ready-to-call steps."""
+"""Builders for _meta.next_commands entries: {tool, arguments} ready-to-call steps.
+
+Every emitted ``next_command`` MUST target its tool by that tool's ACTUAL input
+schema. The gene tools take a single polymorphic ``gene_symbol`` (an approved
+symbol OR an HGNC CURIE), so resolved HGNC CURIEs are emitted as ``gene_symbol``.
+A guard test (tests/test_next_commands.py) validates every affordance against the
+live schema so a param the target rejects can never ship again.
+"""
 
 from __future__ import annotations
 
@@ -21,15 +28,6 @@ def _clean(value: Any) -> str:
     return sanitize_message(str(value))
 
 
-def gene_kwargs(value: str) -> dict[str, str]:
-    """Map a gene value to its canonical arg: an HGNC CURIE -> hgnc_id, else gene_symbol.
-
-    Resolved next-command values are HGNC CURIEs (emit ``hgnc_id`` directly);
-    recovery commands echo raw user input, which may be a symbol or a CURIE.
-    """
-    return {"hgnc_id": value} if value.upper().startswith("HGNC:") else {"gene_symbol": value}
-
-
 def after_search_genes(gene_curies: list[str], query: str = "") -> list[dict[str, Any]]:
     """After resolving genes: pull each gene's curations (capped), or cross to disease search.
 
@@ -39,7 +37,7 @@ def after_search_genes(gene_curies: list[str], query: str = "") -> list[dict[str
     """
     if not gene_curies:
         return [cmd("search_diseases", query=query)] if query else []
-    return [cmd("get_gene_curations", hgnc_id=c) for c in gene_curies[:_MAX_NEXT_COMMANDS]]
+    return [cmd("get_gene_curations", gene_symbol=c) for c in gene_curies[:_MAX_NEXT_COMMANDS]]
 
 
 def after_search_diseases(disease_curies: list[str], query: str = "") -> list[dict[str, Any]]:
@@ -53,14 +51,14 @@ def after_gene_curations(gene: str, disease_curies: list[str]) -> list[dict[str,
     """After a gene's curations: drill into the top disease pair."""
     if not disease_curies:
         return []
-    return [cmd("get_gene_disease_assertion", hgnc_id=gene, disease=disease_curies[0])]
+    return [cmd("get_gene_disease_assertion", gene_symbol=gene, disease=disease_curies[0])]
 
 
 def after_disease_curations(disease: str, gene_curies: list[str]) -> list[dict[str, Any]]:
     """After a disease's curations: drill into the top gene pair."""
     if not gene_curies:
         return []
-    return [cmd("get_gene_disease_assertion", hgnc_id=gene_curies[0], disease=disease)]
+    return [cmd("get_gene_disease_assertion", gene_symbol=gene_curies[0], disease=disease)]
 
 
 def after_genes_curations(payload: dict[str, Any]) -> list[dict[str, Any]]:
@@ -79,7 +77,7 @@ def after_genes_curations(payload: dict[str, Any]) -> list[dict[str, Any]]:
             nexts.append(
                 cmd(
                     "get_gene_disease_assertion",
-                    hgnc_id=gene["gene_curie"],
+                    gene_symbol=gene["gene_curie"],
                     disease=diseases[0]["disease_curie"],
                 )
             )
@@ -102,7 +100,7 @@ def after_diseases_curations(payload: dict[str, Any]) -> list[dict[str, Any]]:
             nexts.append(
                 cmd(
                     "get_gene_disease_assertion",
-                    hgnc_id=genes[0]["gene_curie"],
+                    gene_symbol=genes[0]["gene_curie"],
                     disease=disease["disease_curie"],
                 )
             )
@@ -116,7 +114,7 @@ def after_diseases_curations(payload: dict[str, Any]) -> list[dict[str, Any]]:
 def after_assertion(gene: str, disease: str) -> list[dict[str, Any]]:
     """After a gene-disease assertion: widen to the gene's other diseases."""
     return [
-        cmd("get_gene_curations", hgnc_id=gene),
+        cmd("get_gene_curations", gene_symbol=gene),
         cmd("get_disease_curations", disease=disease),
     ]
 
@@ -129,9 +127,7 @@ def recovery_commands(
     Mirrors the success-path ``next_commands`` so an agent can deterministically
     recover from a failure instead of parsing the prose ``recovery_action``.
     """
-    # The gene-bearing tools now carry the canonical gene_symbol/hgnc_id pair in
-    # their error context; fold them (and any legacy `gene`) into one input value.
-    gene_raw = arguments.get("hgnc_id") or arguments.get("gene_symbol") or arguments.get("gene")
+    gene_raw = arguments.get("gene_symbol")
     gene_in = _clean(gene_raw) if gene_raw else None
     disease_in = _clean(arguments["disease"]) if arguments.get("disease") else None
     query_in = _clean(arguments["query"]) if arguments.get("query") else None
@@ -143,7 +139,7 @@ def recovery_commands(
         if tool == "get_gene_disease_assertion":
             out: list[dict[str, Any]] = []
             if gene_in:
-                out.append(cmd("get_gene_curations", **gene_kwargs(gene_in)))
+                out.append(cmd("get_gene_curations", gene_symbol=gene_in))
             if disease_in:
                 out.append(cmd("get_disease_curations", disease=disease_in))
             return out
@@ -154,7 +150,7 @@ def recovery_commands(
             ]
     if error_code == "ambiguous_query" and tool == "resolve_identifier" and query_in:
         return [
-            cmd("get_gene_curations", **gene_kwargs(query_in)),
+            cmd("get_gene_curations", gene_symbol=query_in),
             cmd("get_disease_curations", disease=query_in),
         ]
     if error_code == "invalid_input":
@@ -163,10 +159,8 @@ def recovery_commands(
         if field == "cursor":
             return [cmd("get_gencc_diagnostics"), cmd("get_server_capabilities")]
         # classification, moi, response_mode, empty query, >20 batch, bad
-        # offset/limit, no-filter find_curations: the authoritative parameter
-        # contract is get_server_capabilities. Guarantees every invalid_input
-        # envelope is chainable (capabilities promises next_commands on errors).
+        # offset/limit: the authoritative parameter contract is
+        # get_server_capabilities. Guarantees every invalid_input envelope is
+        # chainable (capabilities promises next_commands on errors).
         return [cmd("get_server_capabilities")]
-    if error_code == "data_unavailable":
-        return [cmd("get_gencc_diagnostics")]
     return []

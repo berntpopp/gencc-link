@@ -97,10 +97,8 @@ def _static_surface() -> dict[str, Any]:
             "multiple diseases -> get_diseases_curations(diseases=[...])",
         ],
         "parameter_conventions": {
-            "gene_symbol": "approved gene symbol (SKI); exact match. Fleet-canonical; "
-            "mutually exclusive with hgnc_id (pass exactly one to gene tools)",
-            "hgnc_id": "HGNC CURIE (HGNC:10896); exact match. Fleet-canonical; "
-            "mutually exclusive with gene_symbol",
+            "gene_symbol": "gene identifier: an approved symbol (SKI) OR an HGNC CURIE "
+            "(HGNC:10896); exact match (polymorphic single parameter on every gene tool)",
             "disease": "MONDO CURIE (MONDO:0008426), OMIM CURIE, or harmonized title",
             "genes": "list of gene symbols or HGNC CURIEs (max 20); batch form "
             "(polymorphic -- no fleet-canon plural exists)",
@@ -131,14 +129,10 @@ def _static_surface() -> dict[str, Any]:
                 "when": "resolve_identifier(kind='auto') when text matches a gene AND a disease",
             },
             {
-                "code": "data_unavailable",
-                "operational_only": True,
-                "when": "database not built (ingest/ops); not reachable from a well-formed query",
-            },
-            {
                 "code": "upstream_unavailable",
                 "operational_only": True,
-                "when": "thegencc.org download failed (ingest/ops)",
+                "when": "thegencc.org download failed OR the local database is not built "
+                "(ingest/ops); not reachable from a well-formed query",
             },
             {
                 "code": "rate_limited",
@@ -146,7 +140,7 @@ def _static_surface() -> dict[str, Any]:
                 "when": "GenCC daily download quota exceeded (ingest/ops)",
             },
             {
-                "code": "internal_error",
+                "code": "internal",
                 "operational_only": True,
                 "when": "unexpected server fault",
             },
@@ -155,10 +149,9 @@ def _static_surface() -> dict[str, Any]:
             "invalid_input",
             "not_found",
             "ambiguous_query",
-            "data_unavailable",
             "upstream_unavailable",
             "rate_limited",
-            "internal_error",
+            "internal",
         ],
         "conflict_semantics": {
             "supporting": sorted(
@@ -183,11 +176,15 @@ def _static_surface() -> dict[str, Any]:
         },
         "token_cost_hints": {
             "search_genes": "~1-3kB",
+            "search_diseases": "~1-3kB",
             "get_gene_curations": "compact ~2-5kB; full larger with per-submitter rows",
+            "get_disease_curations": "compact ~2-5kB; full larger with per-submitter rows",
             "get_genes_curations": "~2-5kB per resolved gene (compact); scales with the list",
             "get_diseases_curations": "~2-5kB per resolved disease (compact); scales with the list",
             "get_gene_disease_assertion": "standard ~2-4kB; full adds raw submissions",
-            "get_server_capabilities": "<4kB",
+            "find_curations": "~0.6kB per row (compact) up to the 200-row cap "
+            "(~120kB / ~30k tokens at the cap); ids_only ~0.05kB per row",
+            "get_server_capabilities": "~11kB (~2.7k tokens)",
         },
         "response_fields": {
             "headline": "one-line plain-English answer at the top of each payload",

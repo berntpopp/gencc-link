@@ -5,6 +5,56 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.0] - 2026-07-15
+
+MCP contract hardening (issue #40). Behaviour Conformance v1 gate is now CONFORMANT
+(0 fail, 0 UNGATED); tool-schema documentation is 100% (was 17%); tool surface dropped
+from ~7,784 to ~4,211 tokens.
+
+### Fixed
+
+- **`find_curations` emitted an uncallable `next_commands` step (D1).** It targeted
+  `get_gene_disease_assertion` with a `gene` argument that tool does not accept
+  (`additionalProperties: false`), so the server's own recommended next step was rejected
+  with `invalid_input`. Every emitted affordance now matches the target tool's real schema,
+  guarded by a new schema-derived regression test.
+- **Silently-empty filters (Response-Envelope v1.1).** An unresolvable `find_curations`
+  gene/disease filter now returns `not_found` instead of `success: true` with zero rows; an
+  out-of-vocabulary `classification`/`submitter` **item** (array vocabularies) is rejected
+  with `invalid_input` rather than matching nothing.
+- **Zero-hit `search_genes`/`search_diseases` now carry a `headline` (D3),** matching the
+  documented response contract.
+- **`get_server_capabilities.token_cost_hints` were inaccurate/incomplete (D5):** corrected
+  the capabilities-doc size (~11kB) and added hints for `find_curations`, `search_diseases`,
+  `get_disease_curations`.
+- **`isError` on every error envelope.** A structured error now sets the MCP `isError: true`
+  flag on the wire (via the tool middleware) while retaining the structured envelope, so a
+  client branching on `isError` sees the failure.
+
+### Changed (breaking)
+
+- **`error_code` is now the closed six-value enum** (`invalid_input`, `not_found`,
+  `ambiguous_query`, `upstream_unavailable`, `rate_limited`, `internal`). `internal_error` ->
+  `internal`, `data_unavailable` -> `upstream_unavailable`, `untrusted_text_limit_exceeded`
+  -> `invalid_input`.
+- **Gene tools take a single polymorphic `gene_symbol`** (accepts an approved symbol OR an
+  HGNC CURIE); the separate `hgnc_id` parameter was consolidated into it.
+- **`find_curations` with no filters now browses the catalog** (paged) instead of returning
+  `invalid_input`.
+- **`search_genes`, `search_diseases`, `get_disease_curations`, `resolve_identifier` require
+  their primary argument** (`query`/`disease`/`query`) — the misleading empty-string default
+  was removed. Cursor continuations carry the required field alongside the cursor.
+
+### Schema & surface
+
+- Every input property now carries a `description`; every required and array property carries
+  `examples`; `classification` and `kind` are declared `Literal` enums (S1–S4).
+- `outputSchema` is suppressed (`output_schema=None`) and `dereference_schemas=False`;
+  `structuredContent` is unaffected. Canonical `_meta.pagination` (`total_count` + boolean
+  `has_more`) is emitted on every paged collection.
+- Vendored `tests/conformance/behaviour.py` + `test_behaviour_v1.py` from the router and wired
+  the behaviour probe into `conformance.yml`.
+
 ## [0.7.7] - 2026-07-14
 
 ### Fixed

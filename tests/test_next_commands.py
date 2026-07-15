@@ -13,19 +13,10 @@ class TestCmd:
         assert out == {"tool": "search_genes", "arguments": {"query": "SKI"}}
 
 
-class TestGeneKwargs:
-    def test_hgnc_curie_maps_to_hgnc_id(self) -> None:
-        assert nc.gene_kwargs("HGNC:10896") == {"hgnc_id": "HGNC:10896"}
-        assert nc.gene_kwargs("hgnc:1") == {"hgnc_id": "hgnc:1"}
-
-    def test_symbol_maps_to_gene_symbol(self) -> None:
-        assert nc.gene_kwargs("SKI") == {"gene_symbol": "SKI"}
-
-
 class TestAfterSearchGenes:
     def test_with_hits(self) -> None:
         out = nc.after_search_genes(["HGNC:1"])
-        assert out == [{"tool": "get_gene_curations", "arguments": {"hgnc_id": "HGNC:1"}}]
+        assert out == [{"tool": "get_gene_curations", "arguments": {"gene_symbol": "HGNC:1"}}]
 
     def test_empty_with_query_crosses_over(self) -> None:
         out = nc.after_search_genes([], "ZZZX")
@@ -51,12 +42,12 @@ class TestAfterSearchDiseases:
 
 class TestAfterGeneCurations:
     def test_with_diseases(self) -> None:
-        # Builders receive a resolved gene_curie, so they emit the canonical hgnc_id.
+        # Builders receive a resolved gene_curie, emitted as the polymorphic gene_symbol.
         out = nc.after_gene_curations("HGNC:2222", ["MONDO:1"])
         assert out == [
             {
                 "tool": "get_gene_disease_assertion",
-                "arguments": {"hgnc_id": "HGNC:2222", "disease": "MONDO:1"},
+                "arguments": {"gene_symbol": "HGNC:2222", "disease": "MONDO:1"},
             }
         ]
 
@@ -67,7 +58,7 @@ class TestAfterGeneCurations:
 class TestAfterDiseaseCurations:
     def test_with_genes(self) -> None:
         out = nc.after_disease_curations("MONDO:1", ["HGNC:1"])
-        assert out[0]["arguments"] == {"hgnc_id": "HGNC:1", "disease": "MONDO:1"}
+        assert out[0]["arguments"] == {"gene_symbol": "HGNC:1", "disease": "MONDO:1"}
 
     def test_empty(self) -> None:
         assert nc.after_disease_curations("MONDO:1", []) == []
@@ -88,7 +79,7 @@ class TestFanOut:
         curies = [f"HGNC:{i}" for i in range(8)]
         cmds = nc.after_search_genes(curies, "x")
         assert [c["tool"] for c in cmds] == ["get_gene_curations"] * nc._MAX_NEXT_COMMANDS
-        assert cmds[0]["arguments"]["hgnc_id"] == "HGNC:0"
+        assert cmds[0]["arguments"]["gene_symbol"] == "HGNC:0"
 
     def test_after_search_diseases_fans_out_capped(self) -> None:
         curies = [f"MONDO:{i}" for i in range(8)]
@@ -138,12 +129,6 @@ class TestRecoveryCommands:
         )
         assert out == [{"tool": "search_genes", "arguments": {"query": "ZZZ"}}]
 
-    def test_not_found_gene_curations_by_hgnc_id(self) -> None:
-        out = nc.recovery_commands(
-            "get_gene_curations", "not_found", {"gene_symbol": None, "hgnc_id": "HGNC:9"}, None
-        )
-        assert out == [{"tool": "search_genes", "arguments": {"query": "HGNC:9"}}]
-
     def test_not_found_disease_curations(self) -> None:
         out = nc.recovery_commands(
             "get_disease_curations", "not_found", {"disease": "MONDO:9"}, None
@@ -176,10 +161,6 @@ class TestRecoveryCommands:
     def test_invalid_moi_points_to_capabilities(self) -> None:
         out = nc.recovery_commands("find_curations", "invalid_input", {}, "moi")
         assert out[0]["tool"] == "get_server_capabilities"
-
-    def test_data_unavailable(self) -> None:
-        out = nc.recovery_commands("get_gene_curations", "data_unavailable", {}, None)
-        assert out[0]["tool"] == "get_gencc_diagnostics"
 
     def test_unknown_returns_empty(self) -> None:
         assert nc.recovery_commands("list_submitters", "internal_error", {}, None) == []

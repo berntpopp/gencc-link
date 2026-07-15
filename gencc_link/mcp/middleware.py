@@ -31,7 +31,7 @@ class InputValidationMiddleware(Middleware):
         call_next: CallNext[Any, ToolResult],
     ) -> ToolResult:
         try:
-            return await call_next(context)
+            result = await call_next(context)
         except FastMCPValidationError as exc:
             cause = exc.__cause__
             if not isinstance(cause, PydanticValidationError):
@@ -39,6 +39,26 @@ class InputValidationMiddleware(Middleware):
             return self._validation_result(context, cause)
         except PydanticValidationError as exc:
             return self._validation_result(context, exc)
+        return self._mark_error(result)
+
+    @staticmethod
+    def _mark_error(result: ToolResult) -> ToolResult:
+        """Set MCP ``isError`` on every structured error envelope.
+
+        The tool body returns a plain ``success: false`` dict (so the structured
+        envelope survives, which a raise would discard). This is the single wire
+        chokepoint that flips the protocol ``isError`` flag on -- Response-Envelope
+        v1: "isError: true is REQUIRED so clients surface the error to the model for
+        self-correction." A client branching on isError now sees the failure.
+        """
+        sc = result.structured_content
+        if (
+            not result.is_error
+            and isinstance(sc, dict)
+            and (sc.get("success") is False or sc.get("error_code"))
+        ):
+            return ToolResult(content=result.content, structured_content=sc, is_error=True)
+        return result
 
     @staticmethod
     def _validation_result(
@@ -50,4 +70,6 @@ class InputValidationMiddleware(Middleware):
             arguments=dict(context.message.arguments or {}),
             exc=exc,
         )
-        return ToolResult(structured_content=envelope)
+        # isError:true is REQUIRED (Response-Envelope v1): a pre-body argument
+        # validation failure is still an error the client must branch on.
+        return ToolResult(structured_content=envelope, is_error=True)

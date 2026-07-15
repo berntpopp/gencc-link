@@ -63,7 +63,9 @@ async def _call(tool: str, args: dict[str, Any], *, service: Any) -> Any:
     set_service_for_testing(service)
     try:
         async with Client(create_gencc_mcp()) as client:
-            return await client.call_tool(tool, args)
+            # Error envelopes now carry isError:true (the client would otherwise
+            # raise); these tests inspect the structured error + its text mirror.
+            return await client.call_tool(tool, args, raise_on_error=False)
     finally:
         set_service_for_testing(None)
         reset_gencc_service()

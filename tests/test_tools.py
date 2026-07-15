@@ -43,17 +43,15 @@ async def test_list_resources(mcp_client) -> None:
     assert uris == EXPECTED_RESOURCES
 
 
-async def test_all_tools_advertise_typed_output_schema(mcp_client) -> None:
+async def test_all_tools_suppress_output_schema(mcp_client) -> None:
+    # Tool-Surface Budget v1: outputSchema is optional and no model reads it, so
+    # it is suppressed (output_schema=None) to shrink the tool surface. FastMCP
+    # still emits structuredContent for every dict-returning tool (verified by the
+    # success tests above), so nothing is lost on the wire.
     tools = await mcp_client.list_tools()
     assert tools
     for t in tools:
-        schema = t.outputSchema
-        assert schema is not None, t.name
-        props = schema.get("properties", {})
-        assert "success" in props, t.name
-        assert "_meta" in props, t.name
-        # at least one tool-specific top-level field beyond the envelope
-        assert len(props) > 3, t.name
+        assert t.outputSchema is None, t.name
 
 
 async def test_search_genes_success(mcp_client) -> None:
@@ -81,8 +79,9 @@ async def test_get_gene_curations_success(mcp_client) -> None:
     assert data["_meta"]["citation_ref"] == "gencc://citation"
 
 
-async def test_get_gene_curations_by_hgnc_id(mcp_client) -> None:
-    result = await mcp_client.call_tool("get_gene_curations", {"hgnc_id": "HGNC:10896"})
+async def test_get_gene_curations_by_hgnc_curie(mcp_client) -> None:
+    # gene_symbol is polymorphic: it accepts an HGNC CURIE as well as a symbol.
+    result = await mcp_client.call_tool("get_gene_curations", {"gene_symbol": "HGNC:10896"})
     data = result.structured_content
     assert data["success"] is True
     assert data["gene"]["gene_symbol"] == "SKI"
@@ -213,11 +212,12 @@ async def test_error_not_found(mcp_client) -> None:
     assert data["recovery_action"] == "reformulate_input"
 
 
-async def test_error_invalid_input_no_filters(mcp_client) -> None:
+async def test_find_curations_no_filters_browses(mcp_client) -> None:
+    # No filters browses the catalog (paged) rather than erroring.
     result = await mcp_client.call_tool("find_curations", {})
     data = result.structured_content
-    assert data["success"] is False
-    assert data["error_code"] == "invalid_input"
+    assert data["success"] is True
+    assert data["total"] >= len(data["results"]) >= 1
 
 
 async def test_resource_capabilities_read(mcp_client) -> None:
@@ -379,7 +379,7 @@ class TestEvalHardening:
         assert "No Known Disease Relationship" in cs["against"]
         assert "Animal Model Only" in cs["excluded"]
         codes = {e["code"]: e for e in sc["error_codes"]}
-        assert codes["data_unavailable"]["operational_only"] is True
+        assert codes["internal"]["operational_only"] is True
         assert codes["invalid_input"]["operational_only"] is False
         assert sc["error_codes_list"]  # back-compat flat list retained
         assert "ambiguous_query_example" in sc
@@ -480,7 +480,7 @@ class TestEvalHardening:
         from gencc_link.services.cursor import encode_cursor
 
         stale = encode_cursor(release="1999-01-01", offset=1, limit=1, filters={"query": "col"})
-        result = await mcp_client.call_tool("search_genes", {"cursor": stale})
+        result = await mcp_client.call_tool("search_genes", {"query": "col", "cursor": stale})
         data = result.structured_content
         assert data["success"] is False and data["error_code"] == "invalid_input"
         assert data["field_errors"][0]["field"] == "cursor"
@@ -505,7 +505,11 @@ class TestEvalHardening:
         assert data["_meta"]["next_commands"]
 
     async def test_resolve_identifier_alias(self, mcp_client) -> None:
-        result = await mcp_client.call_tool("resolve_identifier", {"identifier": "SKI"})
+        # `identifier` is a deprecated alias; passed alongside a matching `query`
+        # (now the required primary) it is accepted.
+        result = await mcp_client.call_tool(
+            "resolve_identifier", {"query": "SKI", "identifier": "SKI"}
+        )
         data = result.structured_content
         assert data["success"] is True
         assert data["gene"]["gene_symbol"] == "SKI"
@@ -523,11 +527,11 @@ class TestEvalHardening:
         d2 = r2.structured_content
         assert d2["success"] is False and d2["error_code"] == "invalid_input"
         assert d2["_meta"]["next_commands"], ">20 batch error must be chainable"
-        # no-filter find_curations
+        # no-filter find_curations now browses the catalog (no longer an error)
         r3 = await mcp_client.call_tool("find_curations", {})
         d3 = r3.structured_content
-        assert d3["success"] is False
-        assert d3["_meta"]["next_commands"], "no-filter find_curations must be chainable"
+        assert d3["success"] is True
+        assert d3["total"] >= len(d3["results"]) >= 1
 
 
 class TestBatchTools:

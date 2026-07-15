@@ -221,9 +221,11 @@ class TestFindCurations:
         out = service.find_curations(gene="SKI")
         assert out["total"] == 1
 
-    def test_requires_a_filter(self, service: GenCCService) -> None:
-        with pytest.raises(InvalidInputError):
-            service.find_curations()
+    def test_no_filter_browses_the_catalog(self, service: GenCCService) -> None:
+        # With no filters, find_curations browses the whole catalog (paged),
+        # rather than erroring -- so the behaviour gate can build a valid call.
+        out = service.find_curations()
+        assert out["total"] >= len(out["results"]) >= 1
 
     def test_ids_only_returns_just_pairs(self, service: GenCCService) -> None:
         full = service.find_curations(classification=["Definitive"])
@@ -233,10 +235,10 @@ class TestFindCurations:
         for row in ids["results"]:
             assert set(row.keys()) == {"gene_curie", "disease_curie"}
 
-    def test_unknown_gene_filter_empty(self, service: GenCCService) -> None:
-        out = service.find_curations(gene="NOTAGENE")
-        assert out["total"] == 0
-        assert out["results"] == []
+    def test_unknown_gene_filter_is_not_found(self, service: GenCCService) -> None:
+        # An unresolvable gene filter ERRORS (not a silent empty success).
+        with pytest.raises(NotFoundError):
+            service.find_curations(gene="NOTAGENE")
 
 
 class TestListSubmitters:

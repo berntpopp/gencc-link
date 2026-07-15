@@ -130,6 +130,7 @@ async def _call_with_fake_repo(notes: list[str | None]) -> Any:
             return await client.call_tool(
                 "get_gene_disease_assertion",
                 {"gene_symbol": "SKI", "disease": "MONDO:0008426", "response_mode": "full"},
+                raise_on_error=False,
             )
     finally:
         set_service_for_testing(None)
@@ -286,10 +287,10 @@ async def test_object_count_ceiling_maps_to_a_typed_limit_error_not_internal_err
     result = await _call_with_fake_repo([f"note {i}" for i in range(200)])
     data = result.structured_content
     assert data["success"] is False
-    assert data["error_code"] == "untrusted_text_limit_exceeded"
+    assert data["error_code"] == "invalid_input"
     assert data["recovery_action"] == "reformulate_input"
     # not silently truncated/omitted -- an explicit, typed execution error
     assert "submissions" not in data
 
     mirrored = json.loads(result.content[0].text)
-    assert mirrored["error_code"] == "untrusted_text_limit_exceeded"
+    assert mirrored["error_code"] == "invalid_input"

@@ -64,13 +64,16 @@ class TestErrorClassification:
         [
             (NotFoundError("nope"), "not_found", "reformulate_input"),
             (AmbiguousQueryError("amb"), "ambiguous_query", "reformulate_input"),
-            (DataUnavailableError("no db"), "data_unavailable", "build_database"),
+            # DataUnavailableError folds onto the closed enum's upstream_unavailable
+            # (retryable), no longer a bespoke data_unavailable code.
+            (DataUnavailableError("no db"), "upstream_unavailable", "retry_backoff"),
             (QuotaExceededError("quota"), "rate_limited", "retry_backoff"),
             (DownloadError("net"), "upstream_unavailable", "retry_backoff"),
-            (RuntimeError("boom"), "internal_error", "switch_tool"),
+            (RuntimeError("boom"), "internal", "switch_tool"),
             (
+                # An over-limit fenced payload is an input problem: invalid_input.
                 UntrustedTextLimitError("too many fenced objects"),
-                "untrusted_text_limit_exceeded",
+                "invalid_input",
                 "reformulate_input",
             ),
         ],
@@ -114,11 +117,16 @@ class TestErrorClassification:
 
 
 class TestMcpToolError:
-    async def test_custom_error_code(self) -> None:
+    async def test_custom_error_code_is_canonicalised(self) -> None:
+        # error_code is a CLOSED enum: an out-of-enum code folds onto `internal`.
         out = await run_mcp_tool(
             "t", _raiser(McpToolError(error_code="custom_code", message="msg"))
         )
-        assert out["error_code"] == "custom_code"
+        assert out["error_code"] == "internal"
+
+    async def test_enum_error_code_passes_through(self) -> None:
+        out = await run_mcp_tool("t", _raiser(McpToolError(error_code="not_found", message="msg")))
+        assert out["error_code"] == "not_found"
         assert out["message"] == "msg"
 
     async def test_custom_retryable_codes(self) -> None:
@@ -234,7 +242,7 @@ class TestErrorNextCommands:
         out = await run_mcp_tool(
             "get_gene_curations",
             _raiser(NotFoundError("nope")),
-            context=McpErrorContext("get_gene_curations", arguments={"gene": "ZZZ"}),
+            context=McpErrorContext("get_gene_curations", arguments={"gene_symbol": "ZZZ"}),
         )
         assert out["_meta"]["next_commands"] == [
             {"tool": "search_genes", "arguments": {"query": "ZZZ"}}
