@@ -29,11 +29,11 @@ counts. If it reports the database is unavailable, run `make data` (or
    genes with an assertion summary (number of diseases, top classification).
    For an exact symbol-to-id or id-to-symbol map without ranking, use
    `resolve_identifier`.
-2. **List the gene's assertions.** `get_gene_curations` (identify the gene with
-   `gene_symbol` **or** `hgnc_id`) returns every gene-disease assertion for the
-   gene, grouped by disease, each with the `strongest_classification`
-   (highest-rank across submitters) and a conflict flag.
-3. **Drill into one pair.** `get_gene_disease_assertion` takes `gene_symbol`/`hgnc_id`
+2. **List the gene's assertions.** `get_gene_curations` (identify the gene with a
+   single polymorphic `gene_symbol` — an approved symbol OR an HGNC CURIE) returns
+   every gene-disease assertion for the gene, grouped by disease, each with the
+   `strongest_classification` (highest-rank across submitters) and a conflict flag.
+3. **Drill into one pair.** `get_gene_disease_assertion` takes `gene_symbol`
    + `disease` and returns every submitter's classification, mode of inheritance, PMIDs,
    public-report and assertion-criteria URLs, dates (verbatim plus a normalized
    `submitted_as_date_iso` in standard/full), plus the `strongest_classification`
@@ -58,14 +58,18 @@ succeeds, so a single typo never loses the rest of the batch. `limit_per_gene` /
 
 ### Filtered discovery with `find_curations`
 
-`find_curations` filters assertions across the whole dataset. Supported filters:
+`find_curations` filters assertions across the whole dataset (with no filters it
+browses the whole catalog, one page at a time). A filter passed as a blank string
+or empty list is rejected — omit a filter rather than passing it empty. Supported
+filters (all validated case-insensitively):
 
 - `classification` — one or more classification titles (e.g. `["Definitive"]`).
 - `submitter` — one or more submitter titles (e.g. `["ClinGen"]`) or GenCC
   submitter CURIEs.
 - `moi` — a mode-of-inheritance title (e.g. `Autosomal dominant`).
-- `conflict` — restrict to pairs with (or without) a submitter conflict.
-- `gene` / `disease` — scope to a specific gene or disease.
+- `has_conflict` — restrict to pairs with (`true`) or without (`false`) a submitter conflict.
+- `gene_symbol` / `disease` — scope to a specific gene (symbol or HGNC CURIE) or
+  disease; an unresolvable value returns `not_found`.
 
 Example intent: *"Definitive autosomal-dominant genes curated by ClinGen"* ->
 `find_curations(classification=["Definitive"], moi="Autosomal dominant", submitter=["ClinGen"])`.

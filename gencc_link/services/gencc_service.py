@@ -440,9 +440,27 @@ class GenCCService:
         limit = self._clamp_limit(limit)
         offset = self._validate_offset(offset)
 
+        # A filter passed as a BLANK VALUE is invalid_input -- only an OMITTED
+        # (None) filter means "browse". Otherwise gene=" ", disease="",
+        # classification=[], submitter=[], or whitespace moi would silently degrade
+        # to an unfiltered browse and return the WHOLE catalog with success:true
+        # (Response-Envelope v1.1: "silent omission is not compliant").
+        for field, value in (("gene_symbol", gene), ("disease", disease), ("moi", moi)):
+            if value is not None and not value.strip():
+                raise InvalidInputError(
+                    f"`{field}` must not be blank; omit it to browse all curations.",
+                    field=field,
+                )
+        for field, seq in (("classification", classification), ("submitter", submitter)):
+            if seq is not None and len(seq) == 0:
+                raise InvalidInputError(
+                    f"`{field}` must not be an empty list; omit it to browse all curations.",
+                    field=field,
+                )
+
         # An unresolvable gene/disease filter must ERROR, never silently match zero
-        # rows (Response-Envelope v1.1: "silent omission is not compliant"). Resolve
-        # both up front so a bogus identifier is a not_found, not an empty success.
+        # rows. Resolve both up front so a bogus identifier is a not_found, not an
+        # empty success.
         if gene and gene.strip():
             gene_summary = self._repo.resolve_gene(gene.strip())
             if gene_summary is None:

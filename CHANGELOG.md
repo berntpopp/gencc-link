@@ -22,6 +22,14 @@ from ~7,784 to ~4,211 tokens.
   gene/disease filter now returns `not_found` instead of `success: true` with zero rows; an
   out-of-vocabulary `classification`/`submitter` **item** (array vocabularies) is rejected
   with `invalid_input` rather than matching nothing.
+- **Blank filter values no longer browse the whole catalog.** A `find_curations` filter passed
+  as a blank string (`gene_symbol=" "`, `disease=""`, whitespace `moi`) or an empty list
+  (`classification=[]`, `submitter=[]`) now returns `invalid_input` — only an *omitted* filter
+  browses. Previously a blank value silently degraded to an unfiltered browse.
+- **`find_curations` filter schemas now match the runtime vocabulary.** `submitter` and `moi`
+  advertise a data-derived item `enum` (the live roster), and `classification` is validated
+  **case-insensitively** (so `["definitive"]` is accepted, matching the description) while still
+  advertising the canonical-case enum — the schema is aligned with the runtime in both directions.
 - **Zero-hit `search_genes`/`search_diseases` now carry a `headline` (D3),** matching the
   documented response contract.
 - **`get_server_capabilities.token_cost_hints` were inaccurate/incomplete (D5):** corrected
@@ -44,6 +52,8 @@ from ~7,784 to ~4,211 tokens.
 - **`search_genes`, `search_diseases`, `get_disease_curations`, `resolve_identifier` require
   their primary argument** (`query`/`disease`/`query`) — the misleading empty-string default
   was removed. Cursor continuations carry the required field alongside the cursor.
+- **`resolve_identifier` dropped the `identifier` alias.** `query` is the single required
+  argument; passing `identifier` now returns `invalid_input` (unknown argument).
 
 ### Schema & surface
 

@@ -6,15 +6,79 @@ from typing import TYPE_CHECKING, Annotated, Any
 
 from pydantic import Field
 
-from gencc_link.exceptions import InvalidInputError
+from gencc_link.constants import CLASSIFICATION_ORDER
 from gencc_link.mcp.annotations import READ_ONLY_OPEN_WORLD
 from gencc_link.mcp.envelope import McpErrorContext, run_mcp_tool
 from gencc_link.mcp.next_commands import after_assertion, cmd
 from gencc_link.mcp.service_adapters import get_gencc_service
-from gencc_link.models.enums import Classification, ResolveKind, ResponseMode
+from gencc_link.models.enums import ResolveKind, ResponseMode
 
 if TYPE_CHECKING:
     from fastmcp import FastMCP
+
+
+# Data-derived closed vocabularies advertised on the find_curations schema. These
+# are resolved once at registration into module state, then read by the
+# json_schema_extra HOOKS below. The hooks (and the module state) MUST be
+# module-level names: `from __future__ import annotations` re-evaluates each
+# parameter annotation as a string in module globals, so a hook referencing a
+# closure local would raise NameError at schema-generation time.
+_SUBMITTER_ENUM: list[str] | None = None
+_MOI_ENUM: list[str] | None = None
+
+
+def _apply_items_enum(schema: dict[str, Any], values: list[str]) -> None:
+    """Advertise a closed vocabulary on an ARRAY property's items (schema-only).
+
+    The enum is documented in the schema (TOOL-SCHEMA-DOCUMENTATION S4) but is NOT
+    pydantic-enforced, so the case-insensitive runtime validator stays the single
+    authority: it accepts every schema value plus its case variants (runtime is a
+    strict superset of the schema) and rejects anything else with invalid_input.
+    """
+    for branch in schema.get("anyOf", [schema]):
+        if isinstance(branch, dict) and branch.get("type") == "array":
+            branch.setdefault("items", {})["enum"] = values
+
+
+def _apply_scalar_enum(schema: dict[str, Any], values: list[str]) -> None:
+    """As :func:`_apply_items_enum`, for a scalar string property."""
+    for branch in schema.get("anyOf", [schema]):
+        if isinstance(branch, dict) and branch.get("type") == "string":
+            branch["enum"] = values
+
+
+def _classification_schema(schema: dict[str, Any]) -> None:
+    _apply_items_enum(schema, list(CLASSIFICATION_ORDER))
+
+
+def _submitter_schema(schema: dict[str, Any]) -> None:
+    if _SUBMITTER_ENUM:
+        _apply_items_enum(schema, _SUBMITTER_ENUM)
+
+
+def _moi_schema(schema: dict[str, Any]) -> None:
+    if _MOI_ENUM:
+        _apply_scalar_enum(schema, _MOI_ENUM)
+
+
+def _submitter_enum() -> list[str] | None:
+    """Live submitter-title roster for the schema enum (None if data is unbuilt)."""
+    try:
+        subs = get_gencc_service().list_submitters()["submitters"]
+        titles = sorted({s["submitter_title"] for s in subs if s.get("submitter_title")})
+        return titles or None
+    except Exception:
+        return None
+
+
+def _moi_enum() -> list[str] | None:
+    """Live mode-of-inheritance vocabulary for the schema enum (None if unbuilt)."""
+    try:
+        titles = sorted({t for t, _ in get_gencc_service().distinct_moi() if t})
+        return titles or None
+    except Exception:
+        return None
+
 
 _MODE = Annotated[
     ResponseMode,
@@ -40,6 +104,13 @@ _DISEASE = Annotated[
 
 def register_assertion_tools(mcp: FastMCP) -> None:
     """Register assertion-detail, find, and resolve tools."""
+
+    # Data-derived closed vocabularies, resolved once at registration into module
+    # state so the schema hooks advertise the SAME roster the runtime validates
+    # against (None -> unconstrained fallback when the database is not yet built).
+    global _SUBMITTER_ENUM, _MOI_ENUM
+    _SUBMITTER_ENUM = _submitter_enum()
+    _MOI_ENUM = _moi_enum()
 
     @mcp.tool(
         name="get_gene_disease_assertion",
@@ -106,8 +177,10 @@ def register_assertion_tools(mcp: FastMCP) -> None:
             "submitter), not the consensus -- each row's `matched` field names the "
             "triggering submission. Filter values are validated (case-insensitive); "
             "out-of-vocabulary values return invalid_input with the accepted set "
-            "(see get_server_capabilities / list_submitters), and an unresolvable "
-            "gene or disease returns not_found. Pass ids_only=true to return only "
+            "(case-insensitive; see get_server_capabilities / list_submitters), and "
+            "an unresolvable gene or disease returns not_found. A filter passed as a "
+            "blank string / empty list is rejected -- omit a filter to browse. Pass "
+            "ids_only=true to return only "
             "{gene_curie, disease_curie} pairs for cheap paging. Large sweeps: follow "
             "truncated.next_cursor (an opaque, release-bound page token) via "
             "_meta.next_commands; a cursor minted under a prior data release is "
@@ -132,28 +205,31 @@ def register_assertion_tools(mcp: FastMCP) -> None:
             ),
         ] = None,
         classification: Annotated[
-            list[Classification] | None,
+            list[str] | None,
             Field(
                 description="Restrict to submissions carrying one of these GenCC "
-                "classification titles (closed vocabulary).",
+                "classification titles (closed vocabulary; case-insensitive).",
                 examples=[["Definitive"], ["Definitive", "Strong"]],
+                json_schema_extra=_classification_schema,
             ),
         ] = None,
         submitter: Annotated[
             list[str] | None,
             Field(
                 description="Restrict to these submitters by title (e.g. ClinGen) or "
-                "GenCC submitter CURIE; validated against the live roster "
-                "(see list_submitters).",
+                "GenCC submitter CURIE; validated case-insensitively against the live "
+                "roster (see list_submitters).",
                 examples=[["ClinGen"]],
+                json_schema_extra=_submitter_schema,
             ),
         ] = None,
         moi: Annotated[
             str | None,
             Field(
-                description="Restrict to one mode-of-inheritance title; data-derived and "
-                "validated (see get_server_capabilities.inheritance_modes).",
+                description="Restrict to one mode-of-inheritance title (closed vocabulary; "
+                "case-insensitive; see get_server_capabilities.inheritance_modes).",
                 examples=["Autosomal dominant"],
+                json_schema_extra=_moi_schema,
             ),
         ] = None,
         has_conflict: Annotated[
@@ -187,9 +263,7 @@ def register_assertion_tools(mcp: FastMCP) -> None:
             payload = get_gencc_service().find_curations(
                 gene=gene_symbol,
                 disease=disease,
-                # list[Literal] -> list[str] (list is invariant); the runtime
-                # filter re-validates case-insensitively.
-                classification=[str(c) for c in classification] if classification else None,
+                classification=classification,
                 submitter=submitter,
                 moi=moi,
                 has_conflict=has_conflict,
@@ -237,9 +311,7 @@ def register_assertion_tools(mcp: FastMCP) -> None:
             "Resolve free text to a canonical GenCC gene (HGNC) and/or disease "
             "(MONDO) identifier by exact symbol/id/title match. Use kind='gene' or "
             "kind='disease' to disambiguate; default 'auto' tries both and returns "
-            "ambiguous_query if the text matches both a gene and a disease. "
-            "`identifier` is a deprecated alias for `query`; if both are given they "
-            "must match."
+            "ambiguous_query if the text matches both a gene and a disease."
         ),
     )
     async def resolve_identifier(
@@ -258,18 +330,8 @@ def register_assertion_tools(mcp: FastMCP) -> None:
                 examples=["auto"],
             ),
         ] = "auto",
-        identifier: Annotated[
-            str | None,
-            Field(description="Deprecated alias for `query`; if both are set they must match."),
-        ] = None,
     ) -> dict[str, Any]:
         async def call() -> dict[str, Any]:
-            if identifier is not None and query.strip() != identifier.strip():
-                raise InvalidInputError(
-                    "Pass only one of `query`/`identifier` (they are aliases); "
-                    f"got query={query!r} and identifier={identifier!r}.",
-                    field="query",
-                )
             payload = get_gencc_service().resolve_identifier(query, kind=kind)
             nexts: list[dict[str, Any]] = []
             if payload.get("gene"):

@@ -393,17 +393,16 @@ class TestEvalHardening:
         resources = result.structured_content["resources"]
         assert "gencc://research-use" in resources
 
-    async def test_resolve_dual_arg_conflict_rejected(self, mcp_client) -> None:
+    async def test_resolve_identifier_alias_removed(self, mcp_client) -> None:
+        # The `identifier` alias was removed; `query` is the single required arg.
         result = await mcp_client.call_tool(
-            "resolve_identifier", {"query": "SKI", "identifier": "BRCA2"}
+            "resolve_identifier", {"identifier": "SKI"}, raise_on_error=False
         )
         data = result.structured_content
         assert data["success"] is False and data["error_code"] == "invalid_input"
 
-    async def test_resolve_dual_arg_equal_ok(self, mcp_client) -> None:
-        result = await mcp_client.call_tool(
-            "resolve_identifier", {"query": "SKI", "identifier": "SKI"}
-        )
+    async def test_resolve_query_ok(self, mcp_client) -> None:
+        result = await mcp_client.call_tool("resolve_identifier", {"query": "SKI"})
         assert result.structured_content["success"] is True
 
     async def test_resolve_identifier_ambiguous_query(
@@ -504,12 +503,8 @@ class TestEvalHardening:
         assert data["error_code"] == "invalid_input"
         assert data["_meta"]["next_commands"]
 
-    async def test_resolve_identifier_alias(self, mcp_client) -> None:
-        # `identifier` is a deprecated alias; passed alongside a matching `query`
-        # (now the required primary) it is accepted.
-        result = await mcp_client.call_tool(
-            "resolve_identifier", {"query": "SKI", "identifier": "SKI"}
-        )
+    async def test_resolve_identifier_by_query(self, mcp_client) -> None:
+        result = await mcp_client.call_tool("resolve_identifier", {"query": "SKI"})
         data = result.structured_content
         assert data["success"] is True
         assert data["gene"]["gene_symbol"] == "SKI"
