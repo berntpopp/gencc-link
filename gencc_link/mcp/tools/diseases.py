@@ -1,4 +1,4 @@
-"""Disease tools: search_diseases and get_disease_curations."""
+"""Disease tools: search_diseases, get_disease_curations, get_diseases_curations."""
 
 from __future__ import annotations
 
@@ -14,11 +14,6 @@ from gencc_link.mcp.next_commands import (
     after_search_diseases,
     cmd,
 )
-from gencc_link.mcp.schemas import (
-    DISEASE_CURATIONS_SCHEMA,
-    DISEASES_CURATIONS_SCHEMA,
-    SEARCH_DISEASES_SCHEMA,
-)
 from gencc_link.mcp.service_adapters import get_gencc_service
 from gencc_link.models.enums import ResponseMode
 
@@ -27,7 +22,23 @@ if TYPE_CHECKING:
 
 _MODE = Annotated[
     ResponseMode,
-    Field(description="Verbosity: minimal | compact | standard | full (default compact)."),
+    Field(description="Verbosity: minimal | compact | standard | full.", examples=["compact"]),
+]
+_DISEASE = Annotated[
+    str,
+    Field(
+        description="Disease identifier: a MONDO CURIE (MONDO:0009061), an OMIM CURIE "
+        "(OMIM:163950), or an exact harmonized disease title.",
+        examples=["MONDO:0009061", "Noonan syndrome"],
+    ),
+]
+_LIMIT = Annotated[
+    int, Field(description="Rows per page (1-200; above 200 is clamped).", examples=[20])
+]
+_OFFSET = Annotated[int, Field(description="Zero-based row offset for paging.", examples=[0])]
+_CURSOR = Annotated[
+    str | None,
+    Field(description="Opaque, release-bound page token from a prior truncated.next_cursor."),
 ]
 
 
@@ -38,7 +49,7 @@ def register_disease_tools(mcp: FastMCP) -> None:
         name="search_diseases",
         title="Search GenCC Diseases",
         annotations=READ_ONLY_OPEN_WORLD,
-        output_schema=SEARCH_DISEASES_SCHEMA,
+        output_schema=None,
         tags={"disease", "search"},
         description=(
             "Search the GenCC disease catalog by harmonized title (natural-language "
@@ -49,11 +60,17 @@ def register_disease_tools(mcp: FastMCP) -> None:
         ),
     )
     async def search_diseases(
-        query: str = "",
+        query: Annotated[
+            str,
+            Field(
+                description="Disease title (natural language ok), MONDO id, or OMIM id.",
+                examples=["Noonan syndrome", "MONDO:0009061"],
+            ),
+        ],
         response_mode: _MODE = "compact",
-        limit: int = 20,
-        offset: int = 0,
-        cursor: str | None = None,
+        limit: _LIMIT = 20,
+        offset: _OFFSET = 0,
+        cursor: _CURSOR = None,
     ) -> dict[str, Any]:
         async def call() -> dict[str, Any]:
             payload = get_gencc_service().search_diseases(
@@ -63,7 +80,9 @@ def register_disease_tools(mcp: FastMCP) -> None:
             nexts: list[dict[str, Any]] = []
             trunc = payload.get("truncated") or {}
             if trunc.get("next_cursor"):
-                nexts.append(cmd("search_diseases", cursor=trunc["next_cursor"]))
+                # query is required by the schema; carry it so the affordance is
+                # callable (the service restores the real query from the cursor).
+                nexts.append(cmd("search_diseases", query=query, cursor=trunc["next_cursor"]))
             nexts.extend(after_search_diseases(curies, payload.get("query", query)))
             payload["_meta"] = {"next_commands": nexts[:5]}
             return payload
@@ -79,7 +98,7 @@ def register_disease_tools(mcp: FastMCP) -> None:
         name="get_disease_curations",
         title="Get Disease Curations",
         annotations=READ_ONLY_OPEN_WORLD,
-        output_schema=DISEASE_CURATIONS_SCHEMA,
+        output_schema=None,
         tags={"disease"},
         description=(
             "Return all genes asserted for one disease (by MONDO/OMIM id or title), "
@@ -89,11 +108,13 @@ def register_disease_tools(mcp: FastMCP) -> None:
         ),
     )
     async def get_disease_curations(
-        disease: str = "",
+        disease: _DISEASE,
         response_mode: _MODE = "compact",
-        limit: int = 50,
-        offset: int = 0,
-        cursor: str | None = None,
+        limit: Annotated[
+            int, Field(description="Rows per page (1-200; above 200 is clamped).", examples=[50])
+        ] = 50,
+        offset: _OFFSET = 0,
+        cursor: _CURSOR = None,
     ) -> dict[str, Any]:
         async def call() -> dict[str, Any]:
             payload = get_gencc_service().get_disease_curations(
@@ -122,7 +143,7 @@ def register_disease_tools(mcp: FastMCP) -> None:
         name="get_diseases_curations",
         title="Get Curations for Many Diseases",
         annotations=READ_ONLY_OPEN_WORLD,
-        output_schema=DISEASES_CURATIONS_SCHEMA,
+        output_schema=None,
         tags={"disease", "batch"},
         description=(
             "Batch form of get_disease_curations: pass a list of disease ids or "
@@ -134,9 +155,17 @@ def register_disease_tools(mcp: FastMCP) -> None:
         ),
     )
     async def get_diseases_curations(
-        diseases: list[str],
+        diseases: Annotated[
+            list[str],
+            Field(
+                description="Disease ids or titles (max 20).",
+                examples=[["MONDO:0009061", "Marfan syndrome"]],
+            ),
+        ],
         response_mode: _MODE = "compact",
-        limit_per_disease: int = 50,
+        limit_per_disease: Annotated[
+            int, Field(description="Max genes returned per disease (1-200).", examples=[50])
+        ] = 50,
     ) -> dict[str, Any]:
         async def call() -> dict[str, Any]:
             payload = get_gencc_service().get_diseases_curations(

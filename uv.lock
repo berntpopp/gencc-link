@@ -550,7 +550,7 @@ wheels = [
 
 [[package]]
 name = "gencc-link"
-version = "0.7.7"
+version = "0.8.0"
 source = { editable = "." }
 dependencies = [
     { name = "fastapi" },
@@ -569,6 +569,7 @@ dependencies = [
 
 [package.dev-dependencies]
 dev = [
+    { name = "jsonschema" },
     { name = "mypy" },
     { name = "pre-commit" },
     { name = "pytest" },
@@ -598,6 +599,7 @@ requires-dist = [
 
 [package.metadata.requires-dev]
 dev = [
+    { name = "jsonschema", specifier = ">=4.20.0,<5.0.0" },
     { name = "mypy", specifier = ">=2.2.0,<3.0.0" },
     { name = "pre-commit", specifier = ">=4.0.0,<5.0.0" },
     { name = "pytest", specifier = ">=9.1.1,<10.0.0" },

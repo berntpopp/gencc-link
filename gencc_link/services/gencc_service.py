@@ -7,7 +7,6 @@ JSON-ready dicts (the data payload); the MCP tool wrapper attaches
 
 from __future__ import annotations
 
-import time
 from typing import Any
 
 from gencc_link.data.base import GenCCRepositoryProtocol
@@ -17,38 +16,11 @@ from gencc_link.models import BuildMeta
 from gencc_link.models.enums import RESPONSE_MODES, ResponseMode
 from gencc_link.services import shaping
 from gencc_link.services.batch import batch_payload, dedupe_batch
+from gencc_link.services.cache import TTLCache
 from gencc_link.services.cursor import decode_paged_cursor
 from gencc_link.services.filters import validate_find_filters
 
 _MAX_LIMIT = 200
-
-
-class _TTLCache:
-    """Tiny insertion-ordered TTL cache (disabled when maxsize <= 0)."""
-
-    def __init__(self, maxsize: int, ttl: int) -> None:
-        self._maxsize = maxsize
-        self._ttl = ttl
-        self._store: dict[str, tuple[float, dict[str, Any]]] = {}
-
-    def get(self, key: str) -> dict[str, Any] | None:
-        if self._maxsize <= 0:
-            return None
-        item = self._store.get(key)
-        if item is None:
-            return None
-        expires_at, value = item
-        if expires_at < time.monotonic():
-            self._store.pop(key, None)
-            return None
-        return value
-
-    def put(self, key: str, value: dict[str, Any]) -> None:
-        if self._maxsize <= 0:
-            return
-        if len(self._store) >= self._maxsize:
-            self._store.pop(next(iter(self._store)), None)
-        self._store[key] = (time.monotonic() + self._ttl, value)
 
 
 class GenCCService:
@@ -62,7 +34,7 @@ class GenCCService:
         cache_ttl: int = 3600,
     ) -> None:
         self._repo = repository
-        self._cache = _TTLCache(cache_size, cache_ttl)
+        self._cache = TTLCache(cache_size, cache_ttl)
 
     # --- helpers --------------------------------------------------------
 
@@ -155,8 +127,13 @@ class GenCCService:
             "total": total,
             "genes": [shaping.gene_summary_dict(g, mode) for g in hits],
         }
-        if hits:
-            payload["headline"] = shaping.genes_search_headline(query.strip(), hits, total)
+        # Response contract: headline is a plain-English answer on EVERY payload,
+        # including the zero-hit case (capabilities.response_fields.headline).
+        payload["headline"] = (
+            shaping.genes_search_headline(query.strip(), hits, total)
+            if hits
+            else f"No GenCC genes match {query.strip()!r}."
+        )
         trunc = shaping.truncation_block(
             total,
             limit,
@@ -198,8 +175,11 @@ class GenCCService:
             "total": total,
             "diseases": [shaping.disease_summary_dict(d, mode) for d in hits],
         }
-        if hits:
-            payload["headline"] = shaping.diseases_search_headline(query.strip(), hits, total)
+        payload["headline"] = (
+            shaping.diseases_search_headline(query.strip(), hits, total)
+            if hits
+            else f"No GenCC diseases match {query.strip()!r}."
+        )
         trunc = shaping.truncation_block(
             total,
             limit,
@@ -459,11 +439,48 @@ class GenCCService:
         mode = self._validate_mode(response_mode)
         limit = self._clamp_limit(limit)
         offset = self._validate_offset(offset)
-        if not any([gene, disease, classification, submitter, moi, has_conflict is not None]):
-            raise InvalidInputError(
-                "Provide at least one filter (gene, disease, classification, submitter, "
-                "moi, or has_conflict)."
-            )
+
+        # A filter passed as a BLANK VALUE is invalid_input -- only an OMITTED
+        # (None) filter means "browse". Otherwise gene=" ", disease="",
+        # classification=[], submitter=[], or whitespace moi would silently degrade
+        # to an unfiltered browse and return the WHOLE catalog with success:true
+        # (Response-Envelope v1.1: "silent omission is not compliant").
+        for field, value in (("gene_symbol", gene), ("disease", disease), ("moi", moi)):
+            if value is not None and not value.strip():
+                raise InvalidInputError(
+                    f"`{field}` must not be blank; omit it to browse all curations.",
+                    field=field,
+                )
+        for field, seq in (("classification", classification), ("submitter", submitter)):
+            if seq is not None and len(seq) == 0:
+                raise InvalidInputError(
+                    f"`{field}` must not be an empty list; omit it to browse all curations.",
+                    field=field,
+                )
+
+        # An unresolvable gene/disease filter must ERROR, never silently match zero
+        # rows. Resolve both up front so a bogus identifier is a not_found, not an
+        # empty success.
+        if gene and gene.strip():
+            gene_summary = self._repo.resolve_gene(gene.strip())
+            if gene_summary is None:
+                raise NotFoundError(
+                    f"No GenCC gene found for {gene!r}. Try search_genes to resolve a "
+                    "symbol or HGNC id."
+                )
+            gene = gene_summary.gene_curie
+        else:
+            gene = None
+        if disease and disease.strip():
+            disease_summary = self._repo.resolve_disease(disease.strip())
+            if disease_summary is None:
+                raise NotFoundError(
+                    f"No GenCC disease found for {disease!r}. Try search_diseases to "
+                    "resolve a label or MONDO id."
+                )
+            disease = disease_summary.disease_curie
+        else:
+            disease = None
 
         valid_subm_titles: set[str] = set()
         valid_subm_curies: set[str] = set()

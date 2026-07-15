@@ -162,23 +162,26 @@ def _classify(exc: BaseException) -> tuple[str, str, bool]:
     """
     if isinstance(exc, McpToolError):
         return (
-            exc.error_code,
+            _canon_code(exc.error_code),
             sanitize_message(exc.message),
             exc.error_code in {"rate_limited", "upstream_unavailable"},
         )
     if isinstance(exc, UntrustedTextLimitError):
         # Response-Envelope v1.1: a fenced-object ceiling was exceeded (DoS
-        # backstop). This is a typed limit error, never a masked internal_error.
-        return "untrusted_text_limit_exceeded", sanitize_message(str(exc)), False
+        # backstop). The caller sent too much fenced free text, so it maps to the
+        # closed `invalid_input` code (Response-Envelope v1 error-code enum).
+        return "invalid_input", sanitize_message(str(exc)), False
     if isinstance(exc, QuotaExceededError):
         return "rate_limited", "GenCC download quota exceeded. Try again later.", True
     if isinstance(exc, DownloadError):
         return "upstream_unavailable", "Could not reach thegencc.org. Try again later.", True
     if isinstance(exc, DataUnavailableError):
+        # The GenCC data source is not available to the server (ops/ingest state).
+        # Mapped onto the closed enum's `upstream_unavailable`.
         return (
-            "data_unavailable",
+            "upstream_unavailable",
             "GenCC database is not built. Run `make data` (gencc-link-data build).",
-            False,
+            True,
         )
     if isinstance(exc, NotFoundError):
         return "not_found", sanitize_message(str(exc)), False
@@ -195,21 +198,42 @@ def _classify(exc: BaseException) -> tuple[str, str, bool]:
             f"Invalid input -- `{loc}`: {_pydantic_reason(first['type'])}",
             False,
         )
-    return "internal_error", "An internal error occurred. The request was not completed.", False
+    return "internal", "An internal error occurred. The request was not completed.", False
+
+
+# Response-Envelope Standard v1: error_code is a CLOSED enum. Any other value a
+# tool body raises via McpToolError is folded onto the nearest canonical code so
+# no envelope can ever ship a code outside this set.
+ERROR_CODE_ENUM: frozenset[str] = frozenset(
+    {
+        "invalid_input",
+        "not_found",
+        "ambiguous_query",
+        "upstream_unavailable",
+        "rate_limited",
+        "internal",
+    }
+)
+_LEGACY_CODE_MAP: dict[str, str] = {
+    "internal_error": "internal",
+    "data_unavailable": "upstream_unavailable",
+    "untrusted_text_limit_exceeded": "invalid_input",
+    "validation_failed": "invalid_input",
+}
+
+
+def _canon_code(code: str) -> str:
+    """Fold an error code onto the closed six-value enum."""
+    if code in ERROR_CODE_ENUM:
+        return code
+    return _LEGACY_CODE_MAP.get(code, "internal")
 
 
 def _recovery_action(error_code: str, retryable: bool) -> str:
     if retryable:
         return "retry_backoff"
-    if error_code in {
-        "invalid_input",
-        "not_found",
-        "ambiguous_query",
-        "untrusted_text_limit_exceeded",
-    }:
+    if error_code in {"invalid_input", "not_found", "ambiguous_query"}:
         return "reformulate_input"
-    if error_code == "data_unavailable":
-        return "build_database"
     return "switch_tool"
 
 
@@ -285,7 +309,11 @@ async def run_mcp_tool(
     """Execute a tool body, returning the result dict or a structured error dict.
 
     Adds ``_meta.request_id`` + ``_meta.elapsed_ms`` (trace + server timing) and a
-    mode-aware citation to every envelope, success or error.
+    mode-aware citation to every envelope, success or error. An error envelope keeps
+    ``success: false`` + a closed ``error_code``; the MCP ``isError`` flag is set on
+    the wire by :class:`InputValidationMiddleware`, which routes every error envelope
+    through ``ToolResult(is_error=True)`` -- unlike a raise, which throws the
+    structured envelope away (Response-Envelope v1: isError is REQUIRED).
     """
     ctx = context or McpErrorContext(tool_name=tool_name)
     request_id = uuid.uuid4().hex[:12]
@@ -296,12 +324,23 @@ async def run_mcp_tool(
         if isinstance(result, dict):
             result.setdefault("success", True)
             existing_meta: dict[str, Any] = result.get("_meta") or {}
-            result["_meta"] = {
+            meta: dict[str, Any] = {
                 **existing_meta,
                 **_provenance_meta(response_mode),
                 "request_id": request_id,
                 "elapsed_ms": elapsed_ms,
             }
+            # Response-Envelope v1: a paged collection MUST advertise honest
+            # pagination. gencc carries `total` + an object `truncated` (the cursor
+            # block, present only when more rows exist); mirror them into the
+            # canonical `_meta.pagination` with a BOOLEAN has_more so a client can
+            # tell a partial page from a complete one without parsing the cursor.
+            if isinstance(result.get("total"), int):
+                pagination: dict[str, Any] = dict(existing_meta.get("pagination") or {})
+                pagination.setdefault("total_count", result["total"])
+                pagination.setdefault("has_more", bool(result.get("truncated")))
+                meta["pagination"] = pagination
+            result["_meta"] = meta
         return result
     except Exception as exc:  # broad catch is the error-boundary contract
         elapsed_ms = round((time.perf_counter() - start) * 1000, 2)

@@ -61,7 +61,25 @@ async def mcp_client(service: GenCCService) -> AsyncIterator[object]:
     set_service_for_testing(service)
     try:
         async with Client(create_gencc_mcp()) as client:
-            yield client
+            # Error envelopes now carry MCP isError:true, so the fastmcp Client
+            # raises ToolError by default. These tests inspect the structured error
+            # envelope, so default call_tool to raise_on_error=False; the wire-level
+            # isError contract is exercised by tests/conformance/test_behaviour_v1.
+            yield _NonRaisingClient(client)
     finally:
         set_service_for_testing(None)
         reset_gencc_service()
+
+
+class _NonRaisingClient:
+    """Proxy that defaults ``call_tool`` to ``raise_on_error=False``."""
+
+    def __init__(self, client: object) -> None:
+        self._client = client
+
+    async def call_tool(self, *args: object, **kwargs: object) -> object:
+        kwargs.setdefault("raise_on_error", False)
+        return await self._client.call_tool(*args, **kwargs)  # type: ignore[attr-defined]
+
+    def __getattr__(self, name: str) -> object:
+        return getattr(self._client, name)

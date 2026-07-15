@@ -38,11 +38,18 @@ class TestBuildCapabilities:
 
     def test_error_codes(self) -> None:
         caps = build_capabilities()
-        for code in ("invalid_input", "not_found", "data_unavailable", "internal_error"):
-            assert code in caps["error_codes_list"]
+        # Closed six-value enum (Response-Envelope v1): no bespoke codes.
+        assert set(caps["error_codes_list"]) == {
+            "invalid_input",
+            "not_found",
+            "ambiguous_query",
+            "upstream_unavailable",
+            "rate_limited",
+            "internal",
+        }
         # annotated form: operational-only codes marked, query-reachable codes not
         codes = {e["code"]: e for e in caps["error_codes"]}
-        assert codes["data_unavailable"]["operational_only"] is True
+        assert codes["internal"]["operational_only"] is True
         assert codes["upstream_unavailable"]["operational_only"] is True
         assert codes["rate_limited"]["operational_only"] is True
         assert codes["invalid_input"]["operational_only"] is False
@@ -120,9 +127,10 @@ class TestEvalAdditions:
     def test_canonical_gene_args_documented(self) -> None:
         caps = build_capabilities()
         conv = caps["parameter_conventions"]
+        # gene_symbol is the single polymorphic gene identifier (accepts a symbol
+        # OR an HGNC CURIE); the separate hgnc_id alias was consolidated into it.
         assert "gene_symbol" in conv
-        assert "hgnc_id" in conv
-        assert "gene" not in conv  # the polymorphic arg is gone post-split
+        assert "hgnc_id" not in conv
 
     def test_response_fields_document_new_fields(self) -> None:
         caps = build_capabilities()

@@ -1,4 +1,4 @@
-"""Gene tools: search_genes and get_gene_curations."""
+"""Gene tools: search_genes, get_gene_curations, get_genes_curations."""
 
 from __future__ import annotations
 
@@ -14,13 +14,7 @@ from gencc_link.mcp.next_commands import (
     after_search_genes,
     cmd,
 )
-from gencc_link.mcp.schemas import (
-    GENE_CURATIONS_SCHEMA,
-    GENES_CURATIONS_SCHEMA,
-    SEARCH_GENES_SCHEMA,
-)
 from gencc_link.mcp.service_adapters import get_gencc_service
-from gencc_link.mcp.tools._args import coalesce_gene
 from gencc_link.models.enums import ResponseMode
 
 if TYPE_CHECKING:
@@ -28,7 +22,23 @@ if TYPE_CHECKING:
 
 _MODE = Annotated[
     ResponseMode,
-    Field(description="Verbosity: minimal | compact | standard | full (default compact)."),
+    Field(description="Verbosity: minimal | compact | standard | full.", examples=["compact"]),
+]
+_GENE_SYMBOL = Annotated[
+    str,
+    Field(
+        description="Gene identifier: an approved HGNC symbol (e.g. SKI) or an HGNC CURIE "
+        "(e.g. HGNC:10896). Exact match; resolve free text with search_genes first.",
+        examples=["SKI", "HGNC:10896"],
+    ),
+]
+_LIMIT = Annotated[
+    int, Field(description="Rows per page (1-200; above 200 is clamped).", examples=[20])
+]
+_OFFSET = Annotated[int, Field(description="Zero-based row offset for paging.", examples=[0])]
+_CURSOR = Annotated[
+    str | None,
+    Field(description="Opaque, release-bound page token from a prior truncated.next_cursor."),
 ]
 
 
@@ -39,7 +49,7 @@ def register_gene_tools(mcp: FastMCP) -> None:
         name="search_genes",
         title="Search GenCC Genes",
         annotations=READ_ONLY_OPEN_WORLD,
-        output_schema=SEARCH_GENES_SCHEMA,
+        output_schema=None,
         tags={"gene", "search"},
         description=(
             "Search the GenCC gene catalog by approved symbol, partial symbol, or "
@@ -50,11 +60,17 @@ def register_gene_tools(mcp: FastMCP) -> None:
         ),
     )
     async def search_genes(
-        query: str = "",
+        query: Annotated[
+            str,
+            Field(
+                description="Gene symbol, partial symbol, or HGNC id to search for.",
+                examples=["BRCA1", "SKI"],
+            ),
+        ],
         response_mode: _MODE = "compact",
-        limit: int = 20,
-        offset: int = 0,
-        cursor: str | None = None,
+        limit: _LIMIT = 20,
+        offset: _OFFSET = 0,
+        cursor: _CURSOR = None,
     ) -> dict[str, Any]:
         async def call() -> dict[str, Any]:
             payload = get_gencc_service().search_genes(
@@ -64,9 +80,9 @@ def register_gene_tools(mcp: FastMCP) -> None:
             nexts: list[dict[str, Any]] = []
             trunc = payload.get("truncated") or {}
             if trunc.get("next_cursor"):
-                # Page-forward first so an agent sweeping next_commands[0] walks
-                # the full result set (refresh-safe).
-                nexts.append(cmd("search_genes", cursor=trunc["next_cursor"]))
+                # query is required by the schema; carry it so the affordance is
+                # callable (the service restores the real query from the cursor).
+                nexts.append(cmd("search_genes", query=query, cursor=trunc["next_cursor"]))
             nexts.extend(after_search_genes(curies, payload.get("query", query)))
             payload["_meta"] = {"next_commands": nexts[:5]}
             return payload
@@ -82,38 +98,37 @@ def register_gene_tools(mcp: FastMCP) -> None:
         name="get_gene_curations",
         title="Get Gene Curations",
         annotations=READ_ONLY_OPEN_WORLD,
-        output_schema=GENE_CURATIONS_SCHEMA,
+        output_schema=None,
         tags={"gene"},
         description=(
             "Return all GenCC gene-disease validity assertions for one gene, "
             "grouped by disease, each with a consensus classification across "
-            "submitters and a conflict flag. Identify the gene with EITHER "
-            "gene_symbol (approved symbol, e.g. SKI) OR hgnc_id (HGNC CURIE, e.g. "
-            "HGNC:10896) -- pass exactly one. Widen response_mode for the "
+            "submitters and a conflict flag. Identify the gene with gene_symbol "
+            "(an approved symbol OR an HGNC CURIE). Widen response_mode for the "
             "per-submitter breakdown. Page via the release-bound "
             "truncated.next_cursor (surfaced as _meta.next_commands[0])."
         ),
     )
     async def get_gene_curations(
-        gene_symbol: str | None = None,
-        hgnc_id: str | None = None,
+        gene_symbol: _GENE_SYMBOL,
         response_mode: _MODE = "compact",
-        limit: int = 50,
-        offset: int = 0,
-        cursor: str | None = None,
+        limit: Annotated[
+            int, Field(description="Rows per page (1-200; above 200 is clamped).", examples=[50])
+        ] = 50,
+        offset: _OFFSET = 0,
+        cursor: _CURSOR = None,
     ) -> dict[str, Any]:
         async def call() -> dict[str, Any]:
-            gene = coalesce_gene(gene_symbol, hgnc_id, required=True)
             payload = get_gencc_service().get_gene_curations(
-                gene, response_mode=response_mode, limit=limit, offset=offset, cursor=cursor
+                gene_symbol, response_mode=response_mode, limit=limit, offset=offset, cursor=cursor
             )
-            gene_arg = payload.get("gene", {}).get("gene_curie", gene)
+            gene_arg = payload.get("gene", {}).get("gene_curie", gene_symbol)
             disease_curies = [d["disease_curie"] for d in payload.get("diseases", [])]
             nexts: list[dict[str, Any]] = []
             trunc = payload.get("truncated") or {}
             if trunc.get("next_cursor"):
                 nexts.append(
-                    cmd("get_gene_curations", hgnc_id=gene_arg, cursor=trunc["next_cursor"])
+                    cmd("get_gene_curations", gene_symbol=gene_arg, cursor=trunc["next_cursor"])
                 )
             nexts.extend(after_gene_curations(gene_arg, disease_curies))
             payload["_meta"] = {"next_commands": nexts[:5]}
@@ -122,10 +137,7 @@ def register_gene_tools(mcp: FastMCP) -> None:
         return await run_mcp_tool(
             "get_gene_curations",
             call,
-            context=McpErrorContext(
-                "get_gene_curations",
-                arguments={"gene_symbol": gene_symbol, "hgnc_id": hgnc_id},
-            ),
+            context=McpErrorContext("get_gene_curations", arguments={"gene_symbol": gene_symbol}),
             response_mode=response_mode,
         )
 
@@ -133,7 +145,7 @@ def register_gene_tools(mcp: FastMCP) -> None:
         name="get_genes_curations",
         title="Get Curations for Many Genes",
         annotations=READ_ONLY_OPEN_WORLD,
-        output_schema=GENES_CURATIONS_SCHEMA,
+        output_schema=None,
         tags={"gene", "batch"},
         description=(
             "Batch form of get_gene_curations: pass a list of gene symbols or HGNC "
@@ -145,9 +157,17 @@ def register_gene_tools(mcp: FastMCP) -> None:
         ),
     )
     async def get_genes_curations(
-        genes: list[str],
+        genes: Annotated[
+            list[str],
+            Field(
+                description="Gene symbols or HGNC ids (max 20).",
+                examples=[["BRCA2", "NAA10"]],
+            ),
+        ],
         response_mode: _MODE = "compact",
-        limit_per_gene: int = 50,
+        limit_per_gene: Annotated[
+            int, Field(description="Max diseases returned per gene (1-200).", examples=[50])
+        ] = 50,
     ) -> dict[str, Any]:
         async def call() -> dict[str, Any]:
             payload = get_gencc_service().get_genes_curations(

@@ -29,6 +29,9 @@ def create_gencc_mcp() -> FastMCP:
         version=__version__,
         instructions=GENCC_SERVER_INSTRUCTIONS,
         mask_error_details=True,
+        # Tool-Surface Budget v1: input schemas carry no $ref, so leaving them
+        # dereferenced only bloats the surface. Off = ~26% smaller tool surface.
+        dereference_schemas=False,
     )
     # Guard the FastMCP-core not-found reflection surface: core echoes the caller's
     # OWN requested tool name / resource URI / prompt name (with any control/

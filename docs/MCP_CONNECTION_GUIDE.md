@@ -142,18 +142,19 @@ database is built (`status: ready`) or needs building (`status: unavailable`).
 | `get_gene_disease_assertion` | One pair: per-submitter classifications, MOI, PMIDs, URLs + conflict analysis |
 | `find_curations` | Filter assertions by classification/submitter/MOI/conflict (validated enums; rows carry `matched`; `ids_only` for cheap paging; opaque `cursor` for refresh-safe autonomous page-forward) |
 | `list_submitters` | Submitting organizations + counts |
-| `resolve_identifier` | Map free text to canonical HGNC/MONDO ids (accepts `query` or its alias `identifier`) |
+| `resolve_identifier` | Map free text (`query`) to canonical HGNC/MONDO ids |
 
 Every response envelope carries `_meta` with `request_id`, `elapsed_ms`,
-`next_commands` (on success **and** error), and either the full
-`recommended_citation` (`full` mode) or a cacheable `citation_ref` plus a one-line
-`citation_short` attribution stub (`minimal`/`compact`/`standard`). Every tool also
-advertises a typed `outputSchema`, so structured results can be validated
-client-side.
+`next_commands` (on success **and** error), `pagination` (`total_count` +
+`has_more`) on paged tools, and either the full `recommended_citation` (`full`
+mode) or a cacheable `citation_ref` plus a one-line `citation_short` attribution
+stub (`minimal`/`compact`/`standard`). Tools return `structuredContent` (the JSON
+envelope) but do **not** advertise an `outputSchema` — it is suppressed to keep the
+tool surface small (Tool-Surface Budget), and no model reads it.
 
 ## Troubleshooting
 
-- **Tools return `data_unavailable`** — the database is not built. Run
+- **Tools return `upstream_unavailable`** — the database is not built. Run
   `make data` (or `gencc-link-data build`), or rely on auto-bootstrap.
 - **HTTP endpoint unreachable** — confirm the server is running in `unified`
   mode and that any reverse proxy forwards POST requests to `/mcp`.
