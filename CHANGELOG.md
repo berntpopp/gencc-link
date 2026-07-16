@@ -7,17 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Changed
-
-- Re-vendored the behaviour conformance gate from genefoundry-router `56db958`
-  (`docs/conformance/behaviour.py` blob `c69801687`) so live MCP contract checks
-  treat not-found example probes as inconclusive and keep empty auxiliary objects from hiding counted rows.
-
 ## [0.8.0] - 2026-07-15
 
 MCP contract hardening (issue #40). Behaviour Conformance v1 gate is now CONFORMANT
 (0 fail, 0 UNGATED); tool-schema documentation is 100% (was 17%); tool surface dropped
 from ~7,784 to ~4,211 tokens.
+
+### Changed
+
+- Re-vendored the behaviour conformance gate from genefoundry-router `56db958`
+  (`docs/conformance/behaviour.py` blob `c69801687`) so live MCP contract checks
+  treat not-found example probes as inconclusive and keep empty auxiliary objects from hiding counted rows.
 
 ### Fixed
 
