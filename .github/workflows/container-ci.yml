@@ -31,4 +31,4 @@ permissions:
 
 jobs:
   container-ci:
-    uses: berntpopp/genefoundry-router/.github/workflows/_container-ci.yml@86b11f7ed062ed84dfddcbd309e34da88f3dae5b
+    uses: berntpopp/genefoundry-router/.github/workflows/_container-ci.yml@0a625fc37561b1131d7cd8e446ac28a387f52eec
