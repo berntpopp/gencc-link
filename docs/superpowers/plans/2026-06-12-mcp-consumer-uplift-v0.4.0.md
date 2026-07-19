@@ -1,5 +1,8 @@
 # MCP Consumer-Uplift v0.4.0 Implementation Plan
 
+> Historical record — this document records the design or plan as of its date. Current behavior is
+> defined by implemented code, standards, release evidence, and tests.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Lift the GenCC-Link MCP from 9/10 to >9.5/10 by removing full-mode and per-call token redundancy, finishing refresh-safe paging across all paged tools, fixing three correctness/observability nits, and completing the capabilities documentation.

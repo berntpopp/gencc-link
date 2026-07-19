@@ -1,5 +1,8 @@
 # GenCC-Link MCP Consumer Uplift — Design
 
+> Historical record — this document records the design or plan as of its date. Current behavior is
+> defined by implemented code, standards, release evidence, and tests.
+
 **Date:** 2026-06-12
 **Author:** MCP engineering pass (autonomous)
 **Goal:** Close every finding in `docs/mcp-consumer-assessment.md` (F1–F7 plus the

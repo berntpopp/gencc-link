@@ -1,5 +1,8 @@
 # GenCC-Link MCP — Consumer-Uplift v0.4.0 (Design Spec)
 
+> Historical record — this document records the design or plan as of its date. Current behavior is
+> defined by implemented code, standards, release evidence, and tests.
+
 | | |
 |---|---|
 | **Status** | Approved (autonomous goal directive) |

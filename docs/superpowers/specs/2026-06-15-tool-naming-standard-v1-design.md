@@ -1,5 +1,8 @@
 # Adopt GeneFoundry Tool-Naming Standard v1 + dependency bumps — design
 
+> Historical record — this document records the design or plan as of its date. Current behavior is
+> defined by implemented code, standards, release evidence, and tests.
+
 Date: 2026-06-15
 Issue: #3 (Adopt GeneFoundry Tool-Naming Standard v1)
 Supersedes (stale dependabot): PR #1 (docker python 3.14-slim), PR #2 (uv group)

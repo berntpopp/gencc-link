@@ -1,5 +1,8 @@
 # MCP Consumer-Uplift to >9.5/10 — Implementation Plan
 
+> Historical record — this document records the design or plan as of its date. Current behavior is
+> defined by implemented code, standards, release evidence, and tests.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Resolve every finding in `docs/MCP-ASSESSMENT.md` (D1–D6 + the per-call citation tax) to lift the `gencc-link` MCP from 9/10 to >9.5/10, in line with the MCP `2025-11-25` tools spec and FastMCP 3.4.2 behavior.
