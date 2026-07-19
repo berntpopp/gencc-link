@@ -45,6 +45,7 @@
   "definitions": {
     "contract": "data-bound"
   },
+  "data_identity_contract": "unadopted",
   "smoke": {
     "profile": "prepared-live-fixture"
   }
