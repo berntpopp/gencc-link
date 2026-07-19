@@ -1,5 +1,8 @@
 # Tool-Naming Standard v1 + dependency bumps — Implementation Plan
 
+> Historical record — this document records the design or plan as of its date. Current behavior is
+> defined by implemented code, standards, release evidence, and tests.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Bring gencc-link into GeneFoundry Tool-Naming Standard v1 compliance (CI lint guard, fleet-canonical `gene_symbol`/`hgnc_id` args, namespace docs) and land the two stale dependabot bumps cleanly, shipping as 0.5.0.
