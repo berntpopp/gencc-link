@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.1] - 2026-07-30
+
+Consolidated Dependabot sweep. No runtime dependency and no server behaviour changed;
+every update is to CI tooling or the development toolchain.
+
+### Changed
+
+- Bumped pinned GitHub Actions: `actions/checkout` 7.0.0 -> 7.0.1,
+  `actions/setup-python` v6 -> 7.0.0, `astral-sh/setup-uv` 8.3.2 -> 9.0.0. Each SHA was
+  verified against the upstream tag ref, so the trailing `# vX.Y.Z` comment names the
+  release the pin actually is. Neither major bump affects this repo: `setup-python` v7
+  drops the unused `pip-install` input, and `setup-uv` v9 flips a `prune-cache` default
+  that was never set.
+- Bumped development dependencies `ruff` 0.15.22 -> 0.16.0 and `pre-commit` 4.6.0 -> 4.6.1.
+- **Ruff's lint rule set is now declared in full (`select`) instead of extending Ruff's
+  defaults (`extend-select`).** Ruff 0.16.0 grew its default set from 59 to 413 rules, which
+  would otherwise have made an upstream default change into this repo's lint policy. The
+  declared list is a superset of Ruff's pre-0.16 default, so the enforced policy is unchanged;
+  adopting the new rule families remains a deliberate decision rather than a side effect of a
+  dependency bump.
+
 ## [0.8.0] - 2026-07-15
 
 MCP contract hardening (issue #40). Behaviour Conformance v1 gate is now CONFORMANT

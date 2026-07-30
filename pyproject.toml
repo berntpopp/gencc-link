@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "gencc-link"
-version = "0.8.0"
+version = "0.8.1"
 description = "MCP/API server for Gene Curation Coalition (GenCC) gene-disease validity data"
 readme = "README.md"
 license = { text = "MIT" }
@@ -53,9 +53,9 @@ dev = [
     "pytest-xdist>=3.6.0,<4.0.0",
     "respx>=0.22.0,<1.0.0",
     "jsonschema>=4.20.0,<5.0.0",
-    "ruff>=0.15.22,<1.0.0",
+    "ruff>=0.16.0,<1.0.0",
     "mypy>=2.3.0,<3.0.0",
-    "pre-commit>=4.0.0,<5.0.0",
+    "pre-commit>=4.6.1,<5.0.0",
 ]
 
 [project.urls]
@@ -81,7 +81,12 @@ line-length = 100
 target-version = "py312"
 
 [tool.ruff.lint]
-extend-select = [
+# `select`, not `extend-select`: the rule set is declared here in full and does
+# not drift when Ruff changes its defaults (0.16.0 grew the default set from 59
+# to 413 rules). This list is a superset of Ruff's pre-0.16 default (E4/E7/E9,
+# F), so the enforced policy is unchanged. Adopting further rule families is a
+# deliberate decision, not a side effect of a dependency bump.
+select = [
     "E", "W", "F", "I", "N", "UP", "B", "C4", "S", "T20", "SIM", "RUF",
 ]
 ignore = [
