@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.2] - 2026-07-30
+
+CI now tests the interpreter the container actually ships. No runtime or
+server behaviour change.
+
+### Changed
+
+- **The CI `quality` job now runs as a matrix over Python `3.12` and `3.14`.**
+  `docker/Dockerfile` ships `python:3.14-slim`, but the unit and integration
+  suites only ever ran on 3.12 — the image was exercised on 3.14 by
+  `container-ci`/`conformance` while the test suite was not, so a 3.14-only
+  stdlib or typing regression could have reached the published image uncaught.
+  Both ends of the matrix earn their place: `3.12` is the declared
+  `requires-python` floor and stays tested so the floor is not a false claim,
+  and `3.14` is what ships. The coverage gate still runs once, on the 3.14 leg,
+  so the matrix does not double CI time.
+
+- `requires-python`, ruff `target-version` and mypy `python_version` are
+  unchanged at `3.12`. Only the *tested* range widened; the supported floor did
+  not move.
+
 ## [0.8.1] - 2026-07-30
 
 Consolidated Dependabot sweep. No runtime dependency and no server behaviour changed;
