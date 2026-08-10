@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.3] - 2026-08-10
+
+Consolidated Dependabot maintenance release. No server or data-contract
+behaviour change.
+
+### Security
+
+- Updated locked `cryptography` to 50.0.0, closing CVE-2026-69247 while
+  retaining the fail-closed container vulnerability policy.
+
+### Changed
+
+- Updated FastAPI to 0.141.1, Uvicorn to 0.52.1, Typer to 0.27.1, FastMCP to
+  the current 3.4.x release and Ruff to the current 0.16.x release.
+- Re-pinned both reusable container workflows to reviewed router v0.7.4 and
+  moved the workflow pin contract with them.
+
 ## [0.8.2] - 2026-07-30
 
 CI now tests the interpreter the container actually ships. No runtime or
