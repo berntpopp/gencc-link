@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-ROUTER_WORKFLOW_SHA = "915356ac10bb3542f379db612a14b140e3c81078"
+ROUTER_WORKFLOW_SHA = "59050ea9d2851335286c73787f3b7769e1014062"
 
 
 def test_reusable_container_workflows_use_reviewed_router_revision() -> None:
