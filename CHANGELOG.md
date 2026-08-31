@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.4] - 2026-08-31
+
+- Re-pinned the Python base image and all CI workflow dependencies to reviewed immutable revisions.
+
 ## [0.8.3] - 2026-08-10
 
 Consolidated Dependabot maintenance release. No server or data-contract
