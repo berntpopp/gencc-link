@@ -31,3 +31,9 @@ def test_prepared_stage_upgrades_the_fixed_openssl_runtime_packages() -> None:
     assert "openssl" in dockerfile
     assert "libssl3t64" in dockerfile
     assert "openssl-provider-legacy" in dockerfile
+
+
+def test_production_compose_uses_the_approved_restart_policy() -> None:
+    compose = (ROOT / "docker/docker-compose.prod.yml").read_text()
+    assert "restart: unless-stopped" in compose
+    assert "restart: on-failure" not in compose
