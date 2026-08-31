@@ -22,3 +22,12 @@ def test_release_dependencies_use_reviewed_immutable_pins() -> None:
         "_container-release.yml@59050ea9d2851335286c73787f3b7769e1014062"
         in (ROOT / ".github/workflows/container-release.yml").read_text()
     )
+
+
+def test_prepared_stage_upgrades_the_fixed_openssl_runtime_packages() -> None:
+    dockerfile = (ROOT / "docker/Dockerfile").read_text()
+
+    assert "apt-get install -y --only-upgrade --no-install-recommends" in dockerfile
+    assert "openssl" in dockerfile
+    assert "libssl3t64" in dockerfile
+    assert "openssl-provider-legacy" in dockerfile

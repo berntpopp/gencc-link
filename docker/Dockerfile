@@ -70,7 +70,12 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     GENCC_LINK_DATA__REFRESH_INTERVAL_HOURS=24 \
     TMPDIR=/tmp
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
+RUN apt-get update \
+    && apt-get install -y --only-upgrade --no-install-recommends \
+    openssl \
+    libssl3t64 \
+    openssl-provider-legacy \
+    && apt-get install -y --no-install-recommends \
     ca-certificates \
     curl \
     && rm -rf /var/lib/apt/lists/* \
