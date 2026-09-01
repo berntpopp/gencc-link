@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.5] - 2026-09-01
+
+- Corrected the observed upstream-live data identity to the 2026-08-30 GenCC
+  capture (SQLite digest and release tag). The release remains unadopted and
+  non-reproducible because the upstream source is mutable.
+- Recorded capture-only provenance for the export validators, artifact hashes,
+  size, schema, and row/entity counts. This evidence does not establish
+  upstream authenticity.
+
 ## [0.8.4] - 2026-08-31
 
 - Re-pinned the Python base image and all CI workflow dependencies to reviewed immutable revisions.
