@@ -108,3 +108,25 @@ so a daily schedule uses ≤ ~1 download/week and stays far under the 20/day cap
 last check time, whether the last check changed the data, and any last error).
 Structured logs record each scheduler decision (`refresh applied`,
 `refresh check: source not modified`, or a warning on quota/download failure).
+
+## Observed capture evidence
+
+The following is capture-only provenance for the data identity used by the
+2026-09-01 release. It records what was observed locally; it does not establish
+upstream authenticity.
+
+| Field | Observed value |
+|---|---|
+| Identity label | `observed-2026.08.30` |
+| Source URL | `https://thegencc.org/download/action/submissions-export-tsv?format=new` |
+| ETag | `"227c2cc9629fbbebb50154ce6fcd4c51"` |
+| Last-Modified | `Sun, 30 Aug 2026 06:01:23 GMT` |
+| Raw TSV SHA-256 | `69cabf794f61c2680a5e9e28d00a6fa7276722392fba4b249a5cfe021f43d362` |
+| Raw TSV size | `24,957,776` bytes |
+| SQLite SHA-256 | `04834b2adb9134a451eb4458cdf929e164be04757422e777336b0e05fe3cf1f0` |
+| SQLite size | `63,643,648` bytes |
+| Schema / format | `1` / `new` |
+| Counts | 30,221 submissions; 6,108 genes; 8,131 diseases; 19 submitters; 14,018 pairs |
+
+The release manifest therefore remains `upstream-live` with
+`reproducible_rollback: false` and an `unadopted` data identity contract.

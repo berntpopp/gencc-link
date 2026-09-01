@@ -33,8 +33,8 @@
     "egress_allowlist": [
       "thegencc.org"
     ],
-    "release_tag": "observed-2026.07.13",
-    "digest": "sha256:1b090422659cfeda7cc4e16dd27f9b4fcf66012138e9f91c6266b73be9a1d111",
+    "release_tag": "observed-2026.08.30",
+    "digest": "sha256:04834b2adb9134a451eb4458cdf929e164be04757422e777336b0e05fe3cf1f0",
     "reproducible_rollback": false
   },
   "runtime_cache": {
