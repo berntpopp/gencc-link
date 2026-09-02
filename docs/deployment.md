@@ -75,6 +75,25 @@ Behind a proxy you MUST add the public hostname to `GENCC_LINK_ALLOWED_HOSTS`
 (the NPM overlay ships `gencc-link.genefoundry.org`) — the request guard accepts
 exact `Host` values only, and rejects everything else.
 
+### Fleet deploy contract
+
+`container-release.json` declares `service.deployed_compose_files:
+["docker/docker-compose.npm.yml"]` — the exact Compose file the fleet
+controller (`strato_v6_docker_npm`) deploys, standalone (not layered on the
+base/prod files). The shared reusable release workflow
+(`_container-release.yml`, pinned in `.github/workflows/container-release.yml`)
+runs `container_release.py validate-deployed-overlay` against that declared
+file before every release, checking the numeric `user`, restart policy,
+healthcheck `start_period`, `expose`, and the absence of top-level `x-*` keys.
+Self-check locally:
+
+```bash
+docker compose -f docker/docker-compose.npm.yml config --format json > /tmp/gencc-link-rendered.json
+# from a genefoundry-router checkout:
+uv run python scripts/container_release.py validate-deployed-overlay \
+  --config /path/to/gencc-link/container-release.json --project-dir /path/to/gencc-link
+```
+
 ## Kubernetes
 
 Manifests are in [`deploy/k8s/`](../deploy/k8s):
