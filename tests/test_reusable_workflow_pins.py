@@ -4,7 +4,12 @@ import json
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-ROUTER_WORKFLOW_SHA = "db47bd3357cebf33e6722615c4f0e7419a64857e"
+# genefoundry-router v0.8.5: added `validate-deployed-overlay` and the
+# ReleaseConfig fields it reads (`deployed_compose_files` etc, router #172).
+# Both reusable workflows must pin the same router revision: _container-ci.yml
+# also loads ReleaseConfig from the pinned commit to validate
+# container-release.json, so an older pin there rejects the new fields.
+ROUTER_WORKFLOW_SHA = "31ea81cee5475fc3655c047c63a89739948f99a9"
 
 
 def test_reusable_container_workflows_use_reviewed_router_revision() -> None:
