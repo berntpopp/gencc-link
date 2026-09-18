@@ -10,7 +10,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     UV_COMPILE_BYTECODE=1 \
     UV_LINK_MODE=copy
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
+RUN apt-get update && apt-get upgrade -y && apt-get install -y --no-install-recommends \
     build-essential \
     ca-certificates \
     curl \
@@ -71,6 +71,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     TMPDIR=/tmp
 
 RUN apt-get update \
+    && apt-get upgrade -y \
     && apt-get install -y --only-upgrade --no-install-recommends \
     openssl \
     libssl3t64 \
