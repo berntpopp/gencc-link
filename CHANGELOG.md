@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.7] - 2026-09-18
+
+- Consolidated Dependabot dependency updates (pydantic 2.13.5, typer 0.27.2, ruff 0.16.8, mypy 2.3.1).
+- Updated reusable workflow pins to `genefoundry-router` v0.9.1.
+- Updated GitHub Action pins (`setup-uv` v10.1.0, `codeql-action` v4.38.0).
+- Applied Debian package security upgrades in Dockerfile base and prepared stages.
+- Configured Dependabot group updates.
+
 ## [0.8.6] - 2026-09-02
 
 - Deploy: declare the image's numeric uid:gid in docker/docker-compose.npm.yml so the fleet
