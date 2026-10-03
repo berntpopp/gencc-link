@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.8] - 2026-10-03
+
+- Update PyJWT to 2.15.0, AnyIO to 4.14.2, and virtualenv to 21.7.13.
+- Consolidate the open grouped dependency and GitHub Actions updates, including gunicorn, orjson, pre-commit, pytest-mock, Ruff, setup-uv, and CodeQL.
+- Refresh the pinned Python 3.14 base image and router v0.9.3 reusable container workflows.
+
+
 ## [0.8.7] - 2026-09-18
 
 - Consolidated Dependabot dependency updates (pydantic 2.13.5, typer 0.27.2, ruff 0.16.8, mypy 2.3.1).
