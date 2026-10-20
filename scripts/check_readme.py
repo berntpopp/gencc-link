@@ -19,6 +19,8 @@ Exits non-zero on any violation.
 from __future__ import annotations
 
 import re
+import shutil
+import subprocess
 import sys
 from pathlib import Path
 
@@ -61,8 +63,28 @@ GENERATED_BLOCK = re.compile(
 )
 
 
+def _origin_slug(root: Path) -> str | None:
+    """Return the repository name from ``origin``, even in a named worktree."""
+    git = shutil.which("git")
+    if git is None:
+        return None
+    try:
+        result = subprocess.run(  # noqa: S603 -- fixed git argv; root is this checkout
+            [git, "-C", str(root), "remote", "get-url", "origin"],
+            capture_output=True,
+            check=False,
+            text=True,
+        )
+    except OSError:
+        return None
+    if result.returncode != 0:
+        return None
+    slug = result.stdout.strip().rstrip("/").removesuffix(".git").rsplit("/", 1)[-1]
+    return slug if re.fullmatch(r"[A-Za-z0-9_.-]+", slug) else None
+
+
 def repo_slug() -> str:
-    return ROOT.name
+    return _origin_slug(ROOT) or ROOT.name
 
 
 def is_router() -> bool:
@@ -86,8 +108,8 @@ def expected_badges(slug: str) -> list[tuple[str, str]]:
     gate_label = "Security" if is_router() else "Conformance"
     return [
         (
-            "Python 3.12+",
-            "[![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-3776AB"
+            "Python 3.14+",
+            "[![Python 3.14+](https://img.shields.io/badge/python-3.14%2B-3776AB"
             "?logo=python&logoColor=white)](https://www.python.org/)",
         ),
         ("CI", _workflow_badge("CI", slug, "ci.yml")),

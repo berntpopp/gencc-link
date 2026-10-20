@@ -1,6 +1,6 @@
 # gencc-link
 
-[![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
+[![Python 3.14+](https://img.shields.io/badge/python-3.14%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
 [![CI](https://github.com/berntpopp/gencc-link/actions/workflows/ci.yml/badge.svg)](https://github.com/berntpopp/gencc-link/actions/workflows/ci.yml)
 [![Conformance](https://github.com/berntpopp/gencc-link/actions/workflows/conformance.yml/badge.svg)](https://github.com/berntpopp/gencc-link/actions/workflows/conformance.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
@@ -39,7 +39,7 @@ Hosted, no install:
 claude mcp add --transport http gencc-link https://gencc-link.genefoundry.org/mcp
 ```
 
-Locally (Python 3.12+, [uv](https://github.com/astral-sh/uv)) — **`make data` is
+Locally (Python 3.14+, [uv](https://github.com/astral-sh/uv)) — **`make data` is
 the one required step**, the server has no data until the export is downloaded
 and the database built:
 

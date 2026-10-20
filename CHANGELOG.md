@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Unify on Python 3.14 (`requires-python`, ruff/mypy targets, CI single-version matrix, router reusable workflows v0.10.5); cancel superseded PR runs; Dependabot no longer proposes Python minor jumps.
+
 ## [0.8.9] - 2026-10-20
 
 - Security: `mcp` 1.30.0 (fixes the open Dependabot medium-severity alert; lock floor was 1.28.1).

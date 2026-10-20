@@ -80,7 +80,7 @@ def _read_cache(config: GenCCDataConfigModel) -> dict[str, str | None]:
         return {}
     try:
         data = json.loads(cache_path.read_text(encoding="utf-8"))
-    except (json.JSONDecodeError, OSError):
+    except json.JSONDecodeError, OSError:
         return {}
     entry = data.get(_export_url(config))
     if not isinstance(entry, dict):
@@ -105,7 +105,7 @@ def _write_cache(
             loaded = json.loads(cache_path.read_text(encoding="utf-8"))
             if isinstance(loaded, dict):
                 data = loaded
-        except (json.JSONDecodeError, OSError):
+        except json.JSONDecodeError, OSError:
             data = {}
     data[_export_url(config)] = {"etag": etag, "last_modified": last_modified}
     cache_path.write_text(json.dumps(data, indent=2), encoding="utf-8")
@@ -123,7 +123,7 @@ def _load_cache_dict(config: GenCCDataConfigModel) -> dict[str, object]:
         return {}
     try:
         loaded = json.loads(cache_path.read_text(encoding="utf-8"))
-    except (json.JSONDecodeError, OSError):
+    except json.JSONDecodeError, OSError:
         return {}
     return loaded if isinstance(loaded, dict) else {}
 
@@ -157,7 +157,7 @@ def download_quota_status(config: GenCCDataConfigModel) -> dict[str, object]:
     if isinstance(rec, dict) and rec.get("date") == today:
         try:
             used = int(rec.get("count", 0))
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             used = 0
     return {
         "date": today,
@@ -178,7 +178,7 @@ def _int_or_none(value: str | None) -> int | None:
         return None
     try:
         return int(value)
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return None
 
 
@@ -288,7 +288,7 @@ def download_export(
                 max_bytes=config.max_download_bytes,
                 max_seconds=config.max_download_seconds,
             )
-    except (QuotaExceededError, DownloadError):
+    except QuotaExceededError, DownloadError:
         raise
     except httpx.HTTPError as exc:
         raise DownloadError(f"GET {url} failed: {exc}") from exc
