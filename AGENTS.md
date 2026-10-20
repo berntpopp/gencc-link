@@ -67,7 +67,7 @@ Useful focused commands:
 - Use `uv` for dependency management; do not use direct `pip` installs.
 - Use modern Python typing: `list[str]`, `dict[str, int]`, `str | None`.
 - Format and lint Python with Ruff (100-char line length).
-- Type check with mypy targeting Python 3.12 (strict mode).
+- Type check with mypy targeting Python 3.14 (strict mode).
 - Cover services and the repository with unit tests built from
   `tests/fixtures/sample.tsv`; use `respx` to mock the GenCC download in tests.
 

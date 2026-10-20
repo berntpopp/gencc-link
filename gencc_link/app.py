@@ -17,7 +17,7 @@ if TYPE_CHECKING:
 
 
 @asynccontextmanager
-async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
+async def lifespan(_app: FastAPI) -> AsyncGenerator[None]:
     """Application lifespan: ensure data is present, then run the refresh scheduler.
 
     The startup build is non-fatal: if the database cannot be built (e.g. an
