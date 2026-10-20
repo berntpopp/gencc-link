@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.9] - 2026-10-20
+
+- Security: `mcp` 1.30.0 (fixes the open Dependabot medium-severity alert; lock floor was 1.28.1).
+- Changed: consolidated Dependabot updates: fastapi, pydantic 2.14.1, pydantic-core 2.50.1, typer 0.27.3,
+  typing-extensions 4.16.0, typing-inspection 0.4.4, orjson 3.13.0, librt 0.16.0, ast-serialize 0.13.1,
+  mypy 2.4.0, pre-commit 4.7.0, ruff 0.17.1.
+- Changed: GitHub Action pins `setup-uv` v10.3.0, `codeql-action` v4.38.3, `upload-artifact` v7.0.2.
+- Changed: reusable container workflows pinned to `genefoundry-router` v0.10.4.
+
 ## [0.8.8] - 2026-10-03
 
 - Update PyJWT to 2.15.0, AnyIO to 4.14.2, and virtualenv to 21.7.13.
