@@ -8,7 +8,7 @@ ROOT = Path(__file__).resolve().parents[1]
 # Both reusable workflows must pin the same router revision: _container-ci.yml
 # also loads ReleaseConfig from the pinned commit to validate
 # container-release.json, so an older pin there rejects the new fields.
-ROUTER_WORKFLOW_SHA = "bab3fb6bc9a9b2a9c87bd3d5aa9883a42bae039b"
+ROUTER_WORKFLOW_SHA = "5fed6be02ea0a598b56f7d1a69efcc47ff5796c8"
 
 
 def test_reusable_container_workflows_use_reviewed_router_revision() -> None:
