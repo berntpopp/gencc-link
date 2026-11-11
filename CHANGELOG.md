@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.13] - 2026-11-11
+
+### Security
+
+- Fleet dependency sweep: fastmcp floor raised to >=3.4.10 (locked 3.4.11), joserfc 1.8.0,
+  opentelemetry-api 1.45.2, filelock 4.2.10, virtualenv 21.15.6 (fixes the open Dependabot
+  advisories on these packages); GitHub Actions pins refreshed (setup-python v7.1.0,
+  setup-uv v10.3.2, codeql-action v4.39.1).
+
 ## [0.8.12] - 2026-10-28
 
 ### Fixed
