@@ -4,11 +4,11 @@ import json
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-# genefoundry-router v0.10.5
+# genefoundry-router v0.10.14
 # Both reusable workflows must pin the same router revision: _container-ci.yml
 # also loads ReleaseConfig from the pinned commit to validate
 # container-release.json, so an older pin there rejects the new fields.
-ROUTER_WORKFLOW_SHA = "5fed6be02ea0a598b56f7d1a69efcc47ff5796c8"
+ROUTER_WORKFLOW_SHA = "bda1aca30ea885b4ea9ebe6d23e07bacd15dd643"
 
 
 def test_reusable_container_workflows_use_reviewed_router_revision() -> None:

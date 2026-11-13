@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.14] - 2026-11-13
+
+### Changed
+
+- CI: re-pin the reusable container CI/release workflows to genefoundry-router v0.10.14 (`bda1aca`), which fixes the release re-run/recovery path (genefoundry-router #277).
+
 ## [0.8.13] - 2026-11-11
 
 ### Security
