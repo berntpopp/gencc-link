@@ -63,6 +63,7 @@ def build_database(
     tsv_path: Path,
     etag: str | None,
     last_modified: str | None,
+    build_utc: str | None = None,
 ) -> BuildMeta:
     """Build the GenCC SQLite database from a TSV export, atomically.
 
@@ -71,6 +72,8 @@ def build_database(
         tsv_path: Path to the parsed GenCC TSV export.
         etag: ``ETag`` of the source export (provenance), if known.
         last_modified: ``Last-Modified`` of the source export, if known.
+        build_utc: Pinned build timestamp for a reproducible release build; the
+            wall clock and build duration are then left out of the file.
 
     Returns:
         Typed provenance for the freshly built database.
@@ -104,8 +107,8 @@ def build_database(
             "gene_count": gene_count,
             "disease_count": disease_count,
             "submitter_count": submitter_count,
-            "build_utc": datetime.now(tz=UTC).isoformat(),
-            "build_duration_s": duration,
+            "build_utc": build_utc or datetime.now(tz=UTC).isoformat(),
+            "build_duration_s": None if build_utc else duration,
         }
         _insert_meta(conn, meta_values)
         conn.commit()
