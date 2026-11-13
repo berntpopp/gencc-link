@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "dataset": "GenCC submissions export (new format, TSV) and the gencc-link SQLite index derived from it",
+  "redistribution_allowed": true,
+  "reviewer": "Repository owner (explicit operator decision recorded 2026-11-13, genefoundry-router#63 option A)",
+  "reviewed_at": "2026-11-13T00:00:00Z",
+  "interpretation": "This is the repository owner's determination that a derived research-use snapshot may be published as a GitHub release asset. It is not an approval, endorsement, or review by GenCC or any contributing member organization, and it is not a legal conclusion.",
+  "license": {
+    "spdx": "CC0-1.0",
+    "name": "CC0 1.0 Universal Public Domain Dedication",
+    "url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "terms_url": "https://thegencc.org/terms",
+    "terms_retrieved": "2026-11-13",
+    "quote": "The GenCC data are available free of restriction under a CC0 1.0 Universal (CC0 1.0) Public Domain Dedication. The GenCC requests that you give attribution to GenCC and the contributing sources whenever possible and appropriate.",
+    "content_restriction": "Due to licensing restrictions, a GenCC download does not include OMIM data. OMIM data can be accessed and downloaded through https://www.omim.org/ (https://thegencc.org/download). The snapshot is built only from that download and therefore carries no OMIM content beyond what the export itself contains."
+  },
+  "attribution": "The following curated content was obtained from the Gene Curation Coalition (www.thegencc.org) and includes contributions from its member organizations (see https://thegencc.org/members). GenCC data: CC0 1.0. Cite: DiStefano MT, Goehringer S, Babb L, et al. The Gene Curation Coalition: A global effort to harmonize gene-disease evidence resources. Genet Med. 2022;24(8):1732-1742. doi:10.1016/j.gim.2022.04.017.",
+  "disclaimer": "Research use only; not clinical decision support. GenCC data is not intended for direct diagnostic use or medical decision-making without review by a genetics professional."
+}

@@ -2,7 +2,8 @@
 -- Built atomically by gencc_link.ingest.builder from the GenCC submissions
 -- export (new format). Every table is dropped and rebuilt on each run.
 
-PRAGMA journal_mode = WAL;
+-- Rollback journal, not WAL: the released snapshot is served from a read-only mount.
+PRAGMA journal_mode = DELETE;
 PRAGMA foreign_keys = OFF;
 
 -- One row per GenCC submission (sgc_id). Mirrors the 31-column new-format

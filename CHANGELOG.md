@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Data-release pipeline (genefoundry-router#63 option A): `gencc-link-data build --reproducible`
+  pins `build_utc` to the export's `Last-Modified` and omits the build duration, so one upstream
+  export always builds to the same SQLite bytes; `gencc-link-data package` writes the
+  content-addressed `data-gencc-<sha16>` assets (gzip bundle, manifest, owner authorization,
+  `SHA256SUMS`). `.github/workflows/data-release.yml` downloads the export once per weekly run
+  and publishes through the owner-reviewed `data-release` environment.
+- `release/data-authorization.json`: the repository owner's 2026-11-13 redistribution decision
+  for the CC0 GenCC export, with the GenCC terms quote and the requested attribution.
+
+### Changed
+
+- The SQLite snapshot uses a rollback journal instead of WAL so it can be served from a
+  read-only mount.
+
 ## [0.8.14] - 2026-11-13
 
 ### Changed

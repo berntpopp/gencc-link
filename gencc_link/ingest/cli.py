@@ -7,14 +7,17 @@ provenance of the existing database).
 
 from __future__ import annotations
 
+import json
 import sqlite3
+from email.utils import parsedate_to_datetime
+from pathlib import Path
 
 import typer
 
 from gencc_link.config import get_data_config
 from gencc_link.exceptions import DownloadError, QuotaExceededError
 from gencc_link.ingest.builder import build_database, rebuild
-from gencc_link.ingest.downloader import download_export
+from gencc_link.ingest.downloader import EXPORT_FILENAME, download_export
 from gencc_link.models.records import BuildMeta
 
 app = typer.Typer(
@@ -40,7 +43,13 @@ def _print_summary(meta: BuildMeta, *, header: str) -> None:
 
 
 @app.command()
-def build() -> None:
+def build(
+    reproducible: bool = typer.Option(
+        False,
+        "--reproducible",
+        help="Pin build_utc to the export's Last-Modified so the file is byte-reproducible.",
+    ),
+) -> None:
     """Force a download and full rebuild of the database."""
     config = get_data_config()
     try:
@@ -54,13 +63,42 @@ def build() -> None:
     if result.path is None:
         print("ERROR: download produced no export file.")
         raise typer.Exit(code=1)
+    build_utc = None
+    if reproducible:
+        if not result.last_modified:
+            print("ERROR: --reproducible needs the export's Last-Modified header.")
+            raise typer.Exit(code=1)
+        build_utc = parsedate_to_datetime(result.last_modified).isoformat()
     meta = build_database(
         config,
         tsv_path=result.path,
         etag=result.etag,
         last_modified=result.last_modified,
+        build_utc=build_utc,
     )
     _print_summary(meta, header="Built GenCC database:")
+
+
+@app.command()
+def package(
+    output: Path = typer.Option(..., help="New directory for the release assets."),
+    revision: str = typer.Option(..., help="Full commit SHA of the transformation code."),
+    authorization: Path = typer.Option(
+        Path("release/data-authorization.json"), help="Owner redistribution authorization."
+    ),
+) -> None:
+    """Package the reproducibly built database as data-release assets; print the manifest."""
+    from gencc_link.ingest.release import package_release
+
+    config = get_data_config()
+    manifest = package_release(
+        config.db_path,
+        source_tsv=config.data_dir / EXPORT_FILENAME,
+        authorization=authorization,
+        output=output,
+        revision=revision,
+    )
+    print(json.dumps(manifest, indent=2, sort_keys=True))
 
 
 @app.command()
