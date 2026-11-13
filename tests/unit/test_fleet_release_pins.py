@@ -15,11 +15,11 @@ def test_release_dependencies_use_reviewed_immutable_pins() -> None:
         in (ROOT / ".github/workflows/ci.yml").read_text()
     )
     assert (
-        "_container-ci.yml@5fed6be02ea0a598b56f7d1a69efcc47ff5796c8"
+        "_container-ci.yml@bda1aca30ea885b4ea9ebe6d23e07bacd15dd643"
         in (ROOT / ".github/workflows/container-ci.yml").read_text()
     )
     assert (
-        "_container-release.yml@5fed6be02ea0a598b56f7d1a69efcc47ff5796c8"
+        "_container-release.yml@bda1aca30ea885b4ea9ebe6d23e07bacd15dd643"
         in (ROOT / ".github/workflows/container-release.yml").read_text()
     )
 
