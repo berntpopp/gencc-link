@@ -1,6 +1,6 @@
 """Cross-process advisory lock that serializes database builds.
 
-The entrypoint build, the in-process refresh scheduler, and any external cron
+The local build, the in-process refresh scheduler, and any external cron
 or sidecar all funnel through ``gencc-link-data``/``rebuild``. This lock ensures
 only one of them downloads + rebuilds at a time, so they never clobber each
 other's temp file or waste the limited GenCC download quota.

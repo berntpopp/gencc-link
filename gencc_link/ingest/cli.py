@@ -121,6 +121,16 @@ def refresh() -> None:
     _print_summary(result.meta, header="GenCC database refreshed:")
 
 
+@app.command("materialize-data")
+def materialize_data() -> None:
+    """Restore the pinned, digest-verified data release (init sidecar only)."""
+    from gencc_link.config import settings
+    from gencc_link.immutable_data import materialize_immutable_data
+
+    selected = materialize_immutable_data(settings.immutable_data)
+    print(f"Materialized GenCC data release {settings.immutable_data.release_tag}: {selected}")
+
+
 @app.command()
 def info() -> None:
     """Print provenance of the existing database, or a hint to build it."""

@@ -1,132 +1,68 @@
 # Data lifecycle
 
 GenCC publishes a single bulk export (no live API) and rate-limits downloads to
-**20 per IP per day**, where `304 Not Modified` and `HEAD` are exempt. GenCC-Link
-therefore builds a local **SQLite + FTS5** artifact and keeps it current with a
-two-part lifecycle:
-
-1. **Build once on startup** — before the server accepts traffic, so the first
-   request has predictable latency and never triggers a surprise download.
-2. **Refresh on a schedule** — a *conditional* download (ETag / Last-Modified)
-   that rebuilds only when the export actually changed, then **hot-reloads** the
-   running server.
+**20 per IP per day**. GenCC-Link turns that export into a local **SQLite + FTS5**
+index. Since v0.9.0 the deployed server never downloads from thegencc.org: it
+serves one **pinned, published data release** (`external-reference` mode,
+genefoundry-router#63 option A), so every release proves the exact data it serves.
 
 ```
-            ┌──────────────────────────── container / pod ────────────────────────────┐
- startup ──▶│ entrypoint: gencc-link-data refresh  (build if missing, else 304 no-op)  │
-            │        │ writes data/gencc.sqlite (atomic os.replace under a file lock)   │
-            │        ▼                                                                  │
-            │   server (unified)  ──reads──▶ data/gencc.sqlite (read-only connection)  │
-            │        ▲                                                                  │
-            │   in-app scheduler (every 24h): conditional refresh ──changed?──▶ rebuild │
-            │        └────────── on change: reset cached service ──▶ reopen (hot-reload)│
-            └───────────────────────────────────────────────────────────────────────────┘
+ weekly  ┌─ .github/workflows/data-release.yml (main only) ────────────────────────┐
+ (Mon)   │ gencc-link-data build --reproducible  (ONE upstream download)            │
+         │ gencc-link-data package  → data-gencc-<sha16>: gencc.sqlite.gz,          │
+         │   manifest.json, data-authorization.json, SHA256SUMS                     │
+         │ unchanged export → same bytes → same tag → no-op                         │
+         │ new tag → waits on the `data-release` environment (owner) → attest →     │
+         │   draft → verify every asset digest → publish (immutable)                │
+         └──────────────────────────────────────────────────────────────────────────┘
+ reviewed PR: pin tag + digests in gencc_link/config.py AND container-release.json
+ app release vX.Y.Z: the release gate boots the image and checks /health
+   release_identity == container-release.json (Runtime Data Identity v1)
+ deploy  ┌─ compose stack ──────────────────────────────────────────────────────────┐
+         │ gencc-data-init: gencc-link-data materialize-data                        │
+         │   GitHub release asset → sha256(gz) → gunzip → sha256(sqlite) →          │
+         │   schema check → /data/<gz-sha256>/ → atomic /data/current link → exit   │
+         │ gencc-link: reads /data/current/gencc.sqlite from a READ-ONLY mount;     │
+         │   /health reports expected + actual release identity                     │
+         └──────────────────────────────────────────────────────────────────────────┘
 ```
 
-## Building blocks
+## Reproducibility
 
-- **`gencc-link-data` CLI** (`gencc_link/ingest/cli.py`) — the unit of work any
-  scheduler calls:
-  - `build` — force download + rebuild.
-  - `refresh` — conditional; rebuilds only if the export changed (prints
-    "up to date" on `304`).
-  - `info` — print provenance of the existing database.
-- **Build lock** (`gencc_link/ingest/lock.py`) — a POSIX `flock` on
-  `data/.build.lock` serializes every builder (entrypoint, in-app scheduler,
-  sidecar, CronJob) so they never download or rebuild concurrently. `ensure_database`
-  uses double-checked locking.
-- **Atomic swap** — the builder writes `gencc.sqlite.tmp` and `os.replace`s it
-  into place, so readers always see a complete database.
-- **Hot reload** (`gencc_link/mcp/service_adapters.py`) — each tool call does a
-  cheap `stat`; when the database file's mtime changes (any builder swapped it),
-  the read-only connection is reopened. This is what lets an *external* scheduler
-  refresh the data and have the running server pick it up with no restart.
-- **In-app scheduler** (`gencc_link/services/refresh.py`) — a dependency-free
-  asyncio loop started from the FastAPI lifespan (unified/http only; never stdio).
-  First run is one interval after startup; the blocking download+build runs in a
-  worker thread. Surfaced in `get_gencc_diagnostics.refresh`.
+`build --reproducible` pins the `meta.build_utc` field to the export's
+`Last-Modified` and stores no build duration, and the snapshot uses a rollback
+journal (not WAL). The same export therefore always builds to the same SQLite
+bytes, and `package` gzips with a zero timestamp, so the release tag
+(`data-gencc-` + the first 16 hex of the SQLite SHA-256) is content-addressed.
+The manifest records the upstream URL, ETag, Last-Modified, raw TSV SHA-256,
+GenCC run date, record counts, the transformation commit, licence, attribution
+and the authorization record.
 
-## Choosing a refresh strategy
+## Licence and authorization
 
-Pick **one** owner for the periodic refresh. All options share the build lock and
-the hot-reload, so they are safe to mix only if exactly one is enabled.
+GenCC data are CC0 1.0 ([terms](https://thegencc.org/terms)); GenCC requests
+attribution to GenCC and the contributing sources, and its download excludes
+OMIM data. `release/data-authorization.json` records the repository owner's
+2026-11-13 decision to publish the derived research-use snapshot (the owner's
+determination, not a GenCC approval) and the attribution every release carries.
 
-| Strategy | When | How |
-|----------|------|-----|
-| **In-app scheduler** (default) | Single container / single deployment | `GENCC_LINK_DATA__REFRESH_ENABLED=true` (default). Nothing else to run. |
-| **Cron sidecar** | Docker Compose, want separation of concerns | `docker compose -f docker/docker-compose.yml -f docker/docker-compose.cron.yml up -d` — disables the in-app loop and runs a `gencc-refresh` sidecar. |
-| **k8s initContainer + in-app** | Kubernetes, single pod | `deploy/k8s/deployment.yaml` — initContainer builds on startup, in-app scheduler refreshes. ReadWriteOnce PVC is fine. |
-| **k8s CronJob** | Kubernetes, external scheduler | `deploy/k8s/cronjob.yaml` — set `REFRESH_ENABLED=false` on the Deployment; needs a **ReadWriteMany** PVC. |
-| **Host cron / systemd timer** | Bare VM | Disable the in-app loop and schedule `gencc-link-data refresh`. |
+## Re-pinning to a newer data release
 
-### Host cron example
+1. The weekly workflow (or a manual dispatch on `main`) publishes a new
+   `data-gencc-*` release after the owner approves the `data-release` gate.
+2. In one PR, set `DATA_RELEASE_TAG`, `DATA_COMPRESSED_SHA256` (= the
+   `gencc.sqlite.gz` SHA-256 = `manifest.json` `compressed_sha256`) and
+   `DATA_EXPANDED_SHA256` in `gencc_link/config.py`, and the same tag + `sha256:`
+   digest in `container-release.json` `data`. `tests/test_data_release_identity.py`
+   fails if they disagree.
+3. Release the app (`vX.Y.Z`); the release workflow's runtime data identity
+   check is the proof.
 
-```cron
-# Weekly conditional refresh (GenCC updates weekly; 304s are quota-free).
-17 3 * * 1  cd /opt/gencc-link && /opt/gencc-link/.venv/bin/gencc-link-data refresh >> /var/log/gencc-refresh.log 2>&1
-```
+## Local development
 
-### systemd timer example
-
-```ini
-# /etc/systemd/system/gencc-refresh.service
-[Service]
-Type=oneshot
-WorkingDirectory=/opt/gencc-link
-ExecStart=/opt/gencc-link/.venv/bin/gencc-link-data refresh
-Environment=GENCC_LINK_DATA__DATA_DIR=/var/lib/gencc-link
-
-# /etc/systemd/system/gencc-refresh.timer
-[Timer]
-OnCalendar=Mon *-*-* 03:17:00
-Persistent=true
-[Install]
-WantedBy=timers.target
-```
-
-## Configuration
-
-| Variable | Default | Meaning |
-|----------|---------|---------|
-| `GENCC_LINK_DATA__AUTO_BOOTSTRAP` | `true` (image: `false`) | Build lazily on first use if absent. The image sets `false` because the entrypoint builds on startup. |
-| `GENCC_LINK_DATA__REFRESH_ENABLED` | `true` | Run the in-app scheduler (unified/http only). Set `false` when an external scheduler owns refresh. |
-| `GENCC_LINK_DATA__REFRESH_INTERVAL_HOURS` | `24` | Hours between conditional checks. Daily is quota-safe (304 on unchanged days). |
-| `GENCC_LINK_DATA__REFRESH_JITTER_SECONDS` | `300` | Random jitter added per cycle. |
-| `GENCC_LINK_DATA__BUILD_LOCK_TIMEOUT` | `600` | Seconds to wait for the build lock before giving up. |
-
-## Quota safety
-
-The conditional `refresh` sends `If-None-Match` / `If-Modified-Since`. On an
-unchanged export GenCC returns `304`, which does **not** count against the daily
-quota. A real change costs at most one download per change (GenCC changes ~weekly),
-so a daily schedule uses ≤ ~1 download/week and stays far under the 20/day cap.
-
-## Observability
-
-`get_gencc_diagnostics` returns build provenance plus a `refresh` block
-(`enabled`, `interval_hours`, `scheduler_running`, and the scheduler `status`:
-last check time, whether the last check changed the data, and any last error).
-Structured logs record each scheduler decision (`refresh applied`,
-`refresh check: source not modified`, or a warning on quota/download failure).
-
-## Observed capture evidence
-
-The following is capture-only provenance for the data identity used by the
-2026-09-01 release. It records what was observed locally; it does not establish
-upstream authenticity.
-
-| Field | Observed value |
-|---|---|
-| Identity label | `observed-2026.08.30` |
-| Source URL | `https://thegencc.org/download/action/submissions-export-tsv?format=new` |
-| ETag | `"227c2cc9629fbbebb50154ce6fcd4c51"` |
-| Last-Modified | `Sun, 30 Aug 2026 06:01:23 GMT` |
-| Raw TSV SHA-256 | `69cabf794f61c2680a5e9e28d00a6fa7276722392fba4b249a5cfe021f43d362` |
-| Raw TSV size | `24,957,776` bytes |
-| SQLite SHA-256 | `04834b2adb9134a451eb4458cdf929e164be04757422e777336b0e05fe3cf1f0` |
-| SQLite size | `63,643,648` bytes |
-| Schema / format | `1` / `new` |
-| Counts | 30,221 submissions; 6,108 genes; 8,131 diseases; 19 submitters; 14,018 pairs |
-
-The release manifest therefore remains `upstream-live` with
-`reproducible_rollback: false` and an `unadopted` data identity contract.
+The upstream path stays available for local work only:
+`make data` (`gencc-link-data build`), `make data-refresh` (conditional, ETag /
+Last-Modified, `304` is quota-free) and `make data-info`. Run without Docker,
+`GENCC_LINK_DATA__AUTO_BOOTSTRAP` and the in-app refresh scheduler
+(`GENCC_LINK_DATA__REFRESH_ENABLED`) still default to on; the image turns both
+off. A local build reports `data: ready` in `/health` but no `release_identity`.

@@ -84,15 +84,31 @@ def create_app() -> FastAPI:
     @app.get("/health")
     @app.get("/api/health")
     async def health() -> dict[str, Any]:
-        """Liveness probe. Reports data status without forcing a build."""
+        """Liveness, data status, and the verified served data release identity."""
+        from gencc_link.config import get_data_config
+        from gencc_link.exceptions import DataUnavailableError
+        from gencc_link.immutable_data import expected_identity, verify_runtime_identity
         from gencc_link.mcp.capabilities import _data_status
 
-        return {
+        payload: dict[str, Any] = {
             "status": "ok",
             "version": __version__,
             "transport": "streamable-http-stateless",
             "data": _data_status(),
         }
+        try:
+            actual = verify_runtime_identity(get_data_config().db_path, settings.immutable_data)
+        except DataUnavailableError, OSError:
+            # A local dev build (not a restored release) reports no release identity.
+            return payload
+        payload["release_identity"] = {
+            "schema_version": 1,
+            "data_identity": {
+                "expected": expected_identity(settings.immutable_data),
+                "actual": actual,
+            },
+        }
+        return payload
 
     @app.get("/")
     async def root() -> dict[str, Any]:

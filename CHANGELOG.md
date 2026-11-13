@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-11-13
+
+### Changed
+
+- **Data mode `upstream-live` -> `external-reference`** (genefoundry-router#63 option A). The
+  container no longer downloads from thegencc.org at boot or refreshes in-app. A one-shot
+  `gencc-data-init` service runs the new `gencc-link-data materialize-data`: it restores the
+  pinned data release `data-gencc-d6a5392d2700f14d` (GenCC export of 2026-11-08, 30,376
+  submissions) from this repository's GitHub releases, verifies the `gencc.sqlite.gz` and
+  expanded SQLite SHA-256 and the schema, and atomically selects `/data/current`. The server
+  mounts the volume read-only (`GENCC_LINK_DATA__DB_FILENAME=current/gencc.sqlite`).
+- `/health` adds `release_identity.data_identity` (`expected` from the pin, `actual` re-proved
+  from the served bytes); `container-release.json` adopts `data_identity_contract: runtime-v1`
+  with the `immutable-bundle` smoke profile, so every release proves the data it serves.
+- Data releases are no longer marked as the repository's "Latest" release.
+- The SQLite snapshot uses a rollback journal instead of WAL so it can be served from a
+  read-only mount.
+
 ### Added
 
 - Data-release pipeline (genefoundry-router#63 option A): `gencc-link-data build --reproducible`
@@ -18,10 +36,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `release/data-authorization.json`: the repository owner's 2026-11-13 redistribution decision
   for the CC0 GenCC export, with the GenCC terms quote and the requested attribution.
 
-### Changed
+### Removed
 
-- The SQLite snapshot uses a rollback journal instead of WAL so it can be served from a
-  read-only mount.
+- `docker/entrypoint.sh` (boot-time `gencc-link-data refresh`), the `docker-compose.cron.yml`
+  refresh sidecar, and `deploy/k8s/cronjob.yaml`. `make data` / `make data-refresh` remain for
+  local development.
 
 ## [0.8.14] - 2026-11-13
 

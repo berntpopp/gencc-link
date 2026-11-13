@@ -24,38 +24,23 @@ GENCC_LINK_HOST_PORT=8120 make docker-up
 The container-internal port stays standard (`8000`), which keeps reverse-proxy
 and container-to-container routing predictable.
 
-## The Data Volume And First Build
+## The Data Volume (pinned data release)
 
-GenCC-Link serves a local SQLite database built from the weekly GenCC bulk
-export. The database is **not** baked into the image; it is built into the
-directory named by `GENCC_LINK_DATA__DATA_DIR` (default `/data` in the
-container).
+The database is **not** baked into the image and is **not** downloaded from
+thegencc.org at boot. The one-shot `gencc-data-init` service runs
+`gencc-link-data materialize-data`: it restores the image's pinned
+`data-gencc-*` GitHub release asset of this repository into the `gencc-data`
+volume (digest-verified, selected atomically as `/data/current`), and the server
+mounts that volume **read-only**. See [docs/data-lifecycle.md](../docs/data-lifecycle.md)
+and [docs/deployment.md](../docs/deployment.md#operator-steps-fleet-host).
 
-- `docker-compose.yml` mounts the named volume `gencc-data` at `/data`, so
-  the built ~24MB database persists across container restarts and is only
-  downloaded once.
-- With `GENCC_LINK_DATA__AUTO_BOOTSTRAP=true` (the default), the server
-  downloads the GenCC export and builds the database **on first use** if the
-  volume is empty. This first boot can take a couple of minutes, which is why the
-  Compose health check uses a long `start_period`.
-- To pre-build (or refresh) the database without serving traffic, run the data
-  CLI inside the container:
-
-  ```bash
-  docker compose -f docker/docker-compose.yml run --rm gencc-link \
-    gencc-link-data build
-  ```
-
-  `gencc-link-data refresh` rebuilds only if GenCC published a newer export;
-  `gencc-link-data info` prints build provenance.
-
-GenCC enforces a per-IP daily download quota (20/day; `304 Not Modified` and
-`HEAD` are exempt). Persisting the volume avoids re-downloading on every restart.
+`gencc-link-data info` (run in the server container) prints the served build
+provenance. Building from upstream (`make data`) is a local-development path only.
 
 ## Compose Files
 
-- `docker-compose.yml` — base unified service, published on host port `8000`,
-  with the `gencc-data` named volume.
+- `docker-compose.yml` — `gencc-data-init` restore service + base unified
+  service, published on loopback port `8000`, with the `gencc-data` named volume.
 - `docker-compose.prod.yml` — production hardening overlay: no published host
   ports, `no-new-privileges`, dropped capabilities, PID limit and `init`,
   resource limits, and JSON log rotation.
@@ -84,7 +69,8 @@ The production overlay:
 - sets `no-new-privileges` and drops all Linux capabilities,
 - applies a PID limit and an `init` process,
 - applies memory/CPU resource hints and JSON log rotation,
-- keeps the `gencc-data` volume so the database persists.
+- keeps the `gencc-data` volume (written only by `gencc-data-init`, read-only in
+  the server).
 
 Publish a port for local production testing by using only `docker-compose.yml`,
 or by adding a local override file that publishes the desired host port.
@@ -113,20 +99,9 @@ Compose `env_file` or environment variables at runtime.
 
 Set `GENCC_LINK_HOST_PORT` to another free port.
 
-**Database not built / `data: unavailable` in `/health`**
+**`data: unavailable` / no `release_identity` in `/health`**
 
-The first request triggers an auto-build when `AUTO_BOOTSTRAP=true`. To build
-eagerly:
-
-```bash
-docker compose -f docker/docker-compose.yml run --rm gencc-link gencc-link-data build
-```
-
-**Download quota exceeded**
-
-GenCC allows 20 downloads per IP per day. Reuse the `gencc-data` volume so the
-export is not re-downloaded on every restart, and prefer `gencc-link-data
-refresh` (conditional) over `build` (forced).
+The restore did not complete: `docker compose -f docker/docker-compose.yml logs gencc-data-init`.
 
 **Build cache issues**
 
