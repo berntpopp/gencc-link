@@ -33,6 +33,7 @@ _ALLOWED_HOSTS = frozenset(
 )
 _MAX_REDIRECTS = 5
 _CHUNK = 1 << 20
+_VERIFIED: set[tuple[str, int, int, int, str]] = set()
 
 
 def _sha256(path: Path) -> str:
@@ -213,5 +214,11 @@ def verify_runtime_identity(
         raise DataUnavailableError("GenCC database is not the pinned data release")
     if _read_identity(resolved.parent / "identity.json") != _identity(requirement):
         raise DataUnavailableError("GenCC data release identity does not match its pin")
-    _verify_database(requirement, resolved)
+    # Hashing the whole database on every /health probe is too costly: re-hash only
+    # when the served file's identity (inode, size, mtime) changes.
+    stat = resolved.stat()
+    key = (str(resolved), stat.st_ino, stat.st_size, stat.st_mtime_ns, requirement.expanded_sha256)
+    if key not in _VERIFIED:
+        _verify_database(requirement, resolved)
+        _VERIFIED.add(key)
     return expected_identity(requirement)
