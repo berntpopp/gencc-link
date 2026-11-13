@@ -25,8 +25,9 @@ answers "who said what", never "what does the field think". The judgement a
 clinician or curator actually wants — *is this gene-disease pair settled, and do
 the curators disagree?* — has to be computed.
 
-GenCC-Link builds a local **SQLite + FTS5** artifact from that export (fetched
-conditionally, so an unchanged week costs a `304` and no quota), and precomputes
+GenCC-Link builds a local **SQLite + FTS5** artifact from that export (one
+download per weekly data release, published as a pinned, digest-verified GitHub
+release that the container restores at startup), and precomputes
 per pair the `strongest_classification` (highest rank across submitters) and a
 `has_conflict` flag when supporting and against assertions coexist. Queries are
 local, deterministic, and need no upstream at query time.
@@ -86,10 +87,11 @@ the citation contract.
 - **Source:** the GenCC bulk submissions export (new format) from
   [thegencc.org](https://thegencc.org) — ~24MB TSV, republished **weekly**, no
   live API.
-- **Refresh:** conditional (`ETag` / `Last-Modified`). An in-app scheduler checks
-  daily and hot-reloads on change; a cron sidecar or Kubernetes CronJob can own it
-  instead. Unchanged exports return `304`, which is exempt from GenCC's
-  **20 downloads per IP per day** quota — as is `HEAD`. See
+- **Releases:** a weekly workflow builds the export reproducibly (one download,
+  respecting GenCC's **20 downloads per IP per day** quota) into a
+  content-addressed `data-gencc-<sha16>` GitHub release, published after owner
+  review. Deployments restore the release pinned in the image and never contact
+  thegencc.org; `/health` reports the served release identity. See
   [data lifecycle](docs/data-lifecycle.md).
 - **Data licence:** **CC0 1.0** (public domain). Attribution to GenCC and its
   contributing member organizations (ClinGen, Genomics England PanelApp,
@@ -111,7 +113,7 @@ Cite GenCC as:
 - [Architecture](docs/architecture.md) — why SQLite, the consensus/conflict model, transports, error taxonomy, the federation contract.
 - [Configuration](docs/configuration.md) — every `GENCC_LINK_*` variable (a test owns that claim), the Host/Origin request guard, and CORS.
 - [Deployment](docs/deployment.md) — Docker, Compose overlays, Kubernetes, reverse proxy, quota safety.
-- [Data lifecycle](docs/data-lifecycle.md) — build-on-startup, refresh strategies, hot reload.
+- [Data lifecycle](docs/data-lifecycle.md) — reproducible data releases, restore at startup, re-pinning.
 - [Changelog](CHANGELOG.md) · [AGENTS.md](AGENTS.md) — engineering conventions for agentic tools.
 
 ## Contributing

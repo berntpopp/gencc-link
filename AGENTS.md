@@ -44,6 +44,11 @@ Primary areas:
 - Keep public hosted MCP tools read-only and research-use scoped.
 - Respect the GenCC download quota (20/IP/day): use HEAD + conditional requests
   (ETag / Last-Modified); never poll the full export in a loop.
+- Deployed data is `external-reference` (genefoundry-router#63 option A): the
+  image restores the pinned `data-gencc-*` release (`gencc_link/config.py`
+  `DATA_*` == `container-release.json` `data`). Re-pin only in a reviewed PR
+  after the owner-gated `data-release` workflow published it; never add `main`
+  to the `release` environment. See `docs/data-lifecycle.md`.
 
 ## Commands
 

@@ -31,41 +31,58 @@ exposes the unauthenticated backend on the public IP. Override the host port wit
 `GENCC_LINK_HOST_PORT=8120 make docker-up`; the container-internal port stays
 `8000`.
 
-### Data lifecycle in the container
+### Data in the container (pinned data release)
 
-- The **entrypoint builds the database once on startup**, before the server
-  accepts traffic (`gencc-link-data refresh`: builds if missing, else issues a
-  conditional request that returns `304` at no quota cost). It is deliberately
-  non-fatal — if the network is down but the volume already holds a database, the
-  server serves the existing data.
-- An **in-app scheduler** conditionally refreshes every 24h and **hot-reloads**
-  the running server, so first-request latency is predictable and the daily
-  download quota is respected.
-- The built ~24MB database lives in the `gencc-data` named volume at `/data`
-  (`GENCC_LINK_DATA__DATA_DIR`) and persists across restarts; a restart re-uses it.
-  Because the image builds eagerly in the entrypoint, it sets
-  `GENCC_LINK_DATA__AUTO_BOOTSTRAP=false`.
+- A one-shot **`gencc-data-init`** service runs `gencc-link-data materialize-data`
+  before the server starts. It downloads the image's pinned `data-gencc-*`
+  GitHub release asset of this repository (`github.com` /
+  `release-assets.githubusercontent.com` only), verifies the compressed and
+  expanded SHA-256 and the schema, writes `/data/<digest>/gencc.sqlite`, and
+  atomically points `/data/current` at it. A restart re-verifies the existing
+  snapshot without downloading. Nothing is fetched from thegencc.org.
+- The **server mounts the volume read-only**, serves
+  `/data/current/gencc.sqlite`, and reports `release_identity.data_identity`
+  (`expected` from its pin, `actual` re-proved from the served bytes) in
+  `/health`. No in-app refresh, no upstream download.
+- A new data release reaches production only through a reviewed re-pin and a new
+  image (see [data-lifecycle.md](data-lifecycle.md#re-pinning-to-a-newer-data-release)).
+
+### Operator steps (fleet host)
+
+1. Pull the released image by digest and set `GENCC_LINK_IMAGE` as before.
+2. `docker compose -f docker/docker-compose.npm.yml --env-file .env.docker up -d`.
+   Compose starts `gencc-data-init` first (it needs outbound HTTPS to
+   `github.com` and `release-assets.githubusercontent.com`), waits for it to exit
+   `0`, then starts the server. No manual staging is required.
+3. Verify: `docker compose -f docker/docker-compose.npm.yml logs gencc-data-init`
+   shows `Materialized GenCC data release data-gencc-…`, and
+   `curl -s -H 'Host: localhost' http://<container>:8000/health | jq .release_identity`
+   shows `expected == actual` with the tag/digest from `container-release.json`.
+4. Optional cleanup: the old upstream-live files in the existing `gencc-data`
+   volume (`gencc.sqlite`, `gencc-submissions.tsv`, `download_cache.json`,
+   `.build.lock`) are no longer read and may be deleted; the restore writes
+   only `<digest>/` and `current`.
+5. Air-gapped host: run `gencc-data-init` once where `github.com` is reachable and
+   copy the volume, or pre-create `<volume>/<digest>/` from the release assets
+   (`gunzip gencc.sqlite.gz`, `chmod 0444`, the `identity.json` written by
+   `materialize-data`) and the `current` link; the init service then re-verifies
+   it without downloading.
 
 The Compose health check probes `/health`, not `/mcp`: the MCP streamable-HTTP
 endpoint is session-aware, so a plain `GET /mcp` can legitimately return a
-protocol error. The first boot builds the database, hence the long
-`start_period`.
+protocol error.
 
 ## Compose overlays
 
 | File | Purpose |
 |------|---------|
-| `docker/docker-compose.yml` | Base unified service, loopback-published, `gencc-data` volume. |
+| `docker/docker-compose.yml` | Base: `gencc-data-init` restore service + unified server (loopback-published, read-only `gencc-data` volume). |
 | `docker/docker-compose.prod.yml` | Hardening overlay: no published host ports, `no-new-privileges`, all capabilities dropped, PID limit + `init`, resource limits, JSON log rotation. |
-| `docker/docker-compose.cron.yml` | Dedicated-scheduler overlay: disables the in-app loop and runs a `gencc-refresh` sidecar sharing the data volume. |
 | `docker/docker-compose.npm.yml` | Nginx Proxy Manager overlay — **self-contained**, not layered: no published ports (`expose` only), routed by container name on the external `npm_default` network. |
 
 ```bash
 # Production hardening (front it with a reverse proxy)
 docker compose -f docker/docker-compose.yml -f docker/docker-compose.prod.yml up -d --build
-
-# Cron sidecar instead of the in-app refresh loop
-docker compose -f docker/docker-compose.yml -f docker/docker-compose.cron.yml up -d
 
 # Nginx Proxy Manager (standalone)
 docker compose -f docker/docker-compose.npm.yml --env-file .env.docker up -d --build
@@ -96,31 +113,19 @@ uv run python scripts/container_release.py validate-deployed-overlay \
 
 ## Kubernetes
 
-Manifests are in [`deploy/k8s/`](../deploy/k8s):
-
-- [`deployment.yaml`](../deploy/k8s/deployment.yaml) — initContainer builds the
-  database on startup, the in-app scheduler refreshes it. A ReadWriteOnce PVC is
-  fine.
-- [`cronjob.yaml`](../deploy/k8s/cronjob.yaml) — external scheduler. Set
-  `GENCC_LINK_DATA__REFRESH_ENABLED=false` on the Deployment; needs a
-  **ReadWriteMany** PVC.
-
-## Download quota
-
-GenCC rate-limits the bulk export to **20 downloads per IP per day**; `304 Not
-Modified` and `HEAD` are exempt. Persist the `gencc-data` volume and prefer the
-conditional `gencc-link-data refresh` over the forced `build`, and the quota is
-never a concern (~1 real download per week). `get_gencc_diagnostics` reports the
-remaining headroom.
+[`deploy/k8s/deployment.yaml`](../deploy/k8s/deployment.yaml): an initContainer
+runs `gencc-link-data materialize-data`, the server mounts the PVC read-only.
 
 ## Troubleshooting
 
-- **Tools return `data_unavailable` / `/health` reports `data: unavailable`** —
-  the database is not built. Run `make data`, or in the container
-  `docker compose -f docker/docker-compose.yml run --rm gencc-link gencc-link-data build`.
+- **Tools return `data_unavailable` / `/health` has no `release_identity`** —
+  the restore did not complete. Check `docker compose logs gencc-data-init`: a
+  digest/identity error means the volume holds a different or damaged snapshot
+  under the same digest directory (delete that `<digest>/` directory and restart);
+  a download error means `github.com` is unreachable from the init container.
 - **HTTP endpoint unreachable** — confirm the server runs in `unified` mode
   (`http` is REST-only, with no `/mcp`) and that the proxy forwards `POST /mcp`.
 - **Proxied requests rejected** — the public hostname is missing from
   `GENCC_LINK_ALLOWED_HOSTS`.
 - **Port conflict** — set `GENCC_LINK_HOST_PORT`.
-- **Download quota exceeded** — reuse the volume; use `refresh`, not `build`.
+- **Download quota exceeded (local dev only)** — reuse `data/`; use `make data-refresh`, not `make data`.

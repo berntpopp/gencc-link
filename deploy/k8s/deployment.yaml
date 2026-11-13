@@ -1,14 +1,11 @@
-# GenCC-Link on Kubernetes: build-on-startup + in-app scheduled refresh.
+# GenCC-Link on Kubernetes: restore the pinned data release, then serve it read-only.
 #
-# This is the recommended pattern for a single deployment:
-#   - an initContainer builds the database before the server starts (predictable
-#     first-request latency)
-#   - the server's in-app scheduler refreshes it on an interval and hot-reloads
-#   - a PVC persists the ~24MB database across pod restarts (ReadWriteOnce is
-#     fine because only this pod touches the volume)
-#
-# For an external scheduler instead, see cronjob.yaml (and set
-# GENCC_LINK_DATA__REFRESH_ENABLED=false here).
+#   - the initContainer runs `gencc-link-data materialize-data`: it downloads the
+#     image's pinned `data-gencc-*` GitHub release asset, verifies its digests,
+#     and selects it as /data/current (no thegencc.org download, no refresh)
+#   - the server mounts the PVC read-only and reports the served release in
+#     /health `release_identity`
+#   - pin the image by digest; a new data release arrives with a new image.
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim
@@ -40,27 +37,19 @@ spec:
         runAsUser: 999
         fsGroup: 999
       initContainers:
-        # Build (or conditionally refresh) the database before the server starts.
-        - name: build-data
-          image: ghcr.io/berntpopp/gencc-link:latest
-          command: ["gencc-link-data", "refresh"]
-          env:
-            - { name: GENCC_LINK_DATA__DATA_DIR, value: /app/data }
-            - { name: GENCC_LINK_DATA__AUTO_BOOTSTRAP, value: "true" }
+        - name: restore-data
+          image: ghcr.io/berntpopp/gencc-link@sha256:<digest>
+          command: ["gencc-link-data", "materialize-data"]
           volumeMounts:
-            - { name: data, mountPath: /app/data }
+            - { name: data, mountPath: /data }
       containers:
         - name: server
-          image: ghcr.io/berntpopp/gencc-link:latest
+          image: ghcr.io/berntpopp/gencc-link@sha256:<digest>
           args: ["python", "server.py", "--transport", "unified", "--host", "0.0.0.0", "--port", "8000"]
           ports:
             - { containerPort: 8000, name: http }
           env:
             - { name: GENCC_LINK_HOST, value: "0.0.0.0" }
-            - { name: GENCC_LINK_DATA__DATA_DIR, value: /app/data }
-            - { name: GENCC_LINK_DATA__AUTO_BOOTSTRAP, value: "false" }
-            - { name: GENCC_LINK_DATA__REFRESH_ENABLED, value: "true" }
-            - { name: GENCC_LINK_DATA__REFRESH_INTERVAL_HOURS, value: "24" }
             - { name: GENCC_LINK_LOG_FORMAT, value: json }
           readinessProbe:
             httpGet: { path: /health, port: http }
@@ -74,7 +63,7 @@ spec:
             requests: { cpu: "100m", memory: "256Mi" }
             limits: { cpu: "1", memory: "1Gi" }
           volumeMounts:
-            - { name: data, mountPath: /app/data }
+            - { name: data, mountPath: /data, readOnly: true }
       volumes:
         - name: data
           persistentVolumeClaim:

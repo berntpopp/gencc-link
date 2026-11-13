@@ -70,9 +70,9 @@ boundary: request headers are not a capability, and the origin allowlists above
 |----------|---------|-------------|
 | `GENCC_LINK_DATA__SOURCE_FORMAT` | `new` | GenCC export format (`new` \| `legacy`) |
 | `GENCC_LINK_DATA__DATA_DIR` | `<repo>/data` (image: `/data`) | Directory for the built database |
-| `GENCC_LINK_DATA__DB_FILENAME` | `gencc.sqlite` | SQLite filename in the data dir |
-| `GENCC_LINK_DATA__AUTO_BOOTSTRAP` | `true` (image: `false`) | Build the database lazily on first use if absent |
-| `GENCC_LINK_DATA__REFRESH_ENABLED` | `true` | Run the in-app conditional-refresh scheduler (`unified`/`http` only) |
+| `GENCC_LINK_DATA__DB_FILENAME` | `gencc.sqlite` (image: `current/gencc.sqlite`) | SQLite filename in the data dir |
+| `GENCC_LINK_DATA__AUTO_BOOTSTRAP` | `true` (image: `false`) | Build the database lazily on first use if absent (local dev only) |
+| `GENCC_LINK_DATA__REFRESH_ENABLED` | `true` (image: `false`) | Run the in-app conditional-refresh scheduler (`unified`/`http` only; local dev only) |
 | `GENCC_LINK_DATA__REFRESH_INTERVAL_HOURS` | `24` | Hours between conditional refresh checks |
 | `GENCC_LINK_DATA__REFRESH_JITTER_SECONDS` | `300` | Random jitter added to each refresh |
 | `GENCC_LINK_DATA__BUILD_LOCK_TIMEOUT` | `600` | Seconds to wait for the cross-process build lock |
@@ -83,20 +83,33 @@ boundary: request headers are not a capability, and the origin allowlists above
 | `GENCC_LINK_DATA__CACHE_SIZE` | `512` | Query cache entries (0 disables) |
 | `GENCC_LINK_DATA__CACHE_TTL` | `3600` | Query cache TTL (seconds) |
 
+### Pinned data release (init sidecar)
+
+`gencc-link-data materialize-data` (the `gencc-data-init` service) restores exactly
+this release; `/health` reports it as `release_identity.data_identity`. The defaults
+are the reviewed pin in `gencc_link/config.py` (kept equal to `container-release.json`
+by `tests/test_data_release_identity.py`); override only for a reviewed re-pin.
+
+| Variable | Default | Description |
+|---|---|---|
+| `GENCC_LINK_IMMUTABLE_DATA__REFERENCE_ROOT` | `/data` | Volume root holding `<digest>/gencc.sqlite` and the `current` link |
+| `GENCC_LINK_IMMUTABLE_DATA__RELEASE_TAG` | pinned `data-gencc-<sha16>` | Published data release tag of this repo |
+| `GENCC_LINK_IMMUTABLE_DATA__BUNDLE_URL` | that release's `gencc.sqlite.gz` | HTTPS `github.com` release-asset URL under the tag |
+| `GENCC_LINK_IMMUTABLE_DATA__COMPRESSED_SHA256` | pinned | SHA-256 of `gencc.sqlite.gz` (the release digest) |
+| `GENCC_LINK_IMMUTABLE_DATA__EXPANDED_SHA256` | pinned | SHA-256 of the expanded `gencc.sqlite` |
+| `GENCC_LINK_IMMUTABLE_DATA__MAX_COMPRESSED_BYTES` | `134217728` | Download size cap |
+| `GENCC_LINK_IMMUTABLE_DATA__MAX_EXPANDED_BYTES` | `1073741824` | Decompressed size cap |
+
 `MAX_DOWNLOAD_BYTES` and `MAX_DOWNLOAD_SECONDS` bound what a compromised or
 misbehaving upstream can make this server ingest. The export measured
 24,507,669 bytes on 2026-07-10, so the 128 MiB default carries roughly 5x
 headroom — raise it if GenCC's export outgrows the cap, rather than removing it.
 
-`AUTO_BOOTSTRAP` differs between the checkout and the image on purpose: locally
-the `unified`/`http` server lazily builds the database on first use if it is
-absent (so `make data` is optional, though recommended for a predictable first
-boot); in the container the **entrypoint** builds it before the server accepts
-traffic, so lazy bootstrap is switched off.
-
-`REFRESH_ENABLED` must be owned by exactly one scheduler. Set it to `false`
-whenever an external scheduler (cron sidecar, Kubernetes CronJob, systemd timer)
-owns the refresh — see [data-lifecycle.md](data-lifecycle.md#choosing-a-refresh-strategy).
+`AUTO_BOOTSTRAP` and `REFRESH_ENABLED` differ between the checkout and the image
+on purpose: locally the `unified`/`http` server lazily builds the database from
+the upstream export and refreshes it in-app; the image turns both off because the
+container serves only the pinned data release restored by `gencc-data-init`
+(see [data-lifecycle.md](data-lifecycle.md)).
 
 ## Docker-only variables
 

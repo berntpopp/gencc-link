@@ -10,12 +10,51 @@
 name: gencc-link-npm
 
 services:
+  # Restores the pinned, digest-verified GenCC data release (a `data-gencc-*`
+  # GitHub release of this repo) into the volume and exits; only the private
+  # stack network, no proxy network. No thegencc.org download at boot.
+  gencc-data-init:
+    image: ${GENCC_LINK_IMAGE:?Set GENCC_LINK_IMAGE to ghcr.io/berntpopp/gencc-link@sha256:<digest>}
+    pull_policy: missing
+    command: ["gencc-link-data", "materialize-data"]
+    environment:
+      - GENCC_LINK_IMMUTABLE_DATA__REFERENCE_ROOT=/data
+    volumes:
+      - gencc-data:/data
+    networks:
+      - gencc_link_internal_net
+    restart: "no"
+    # This image's own uid:gid (docker/Dockerfile); same as the server.
+    user: "999:999"
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=64m,mode=1777
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    init: true
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+          cpus: "1.0"
+          pids: 256
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "5"
+
   gencc_link:
     # Deploy pulls the released, attested image; it never builds from source.
     # Pin a digest, not a tag: there is no `latest`, and only a digest is immutable.
     image: ${GENCC_LINK_IMAGE:?Set GENCC_LINK_IMAGE to ghcr.io/berntpopp/gencc-link@sha256:<digest>}
     pull_policy: missing
     container_name: gencc-link-npm
+    depends_on:
+      gencc-data-init:
+        condition: service_completed_successfully
     # NO published host ports - NPM handles all routing via the container name.
     expose:
       - "8000"
@@ -28,14 +67,11 @@ services:
       - GENCC_LINK_LOG_FORMAT=json
       - GENCC_LINK_RELOAD=false
       - 'GENCC_LINK_ALLOWED_HOSTS=["localhost","127.0.0.1","::1","gencc-link.genefoundry.org"]'
-      # Data lifecycle: the entrypoint builds the ~24MB SQLite DB once on first
-      # boot (AUTO_BOOTSTRAP as a lazy fallback) and the in-app scheduler
-      # conditionally refreshes it every 24h (304 = no-op). The named volume
-      # keeps the DB across restarts.
+      # Serve the release restored by gencc-data-init, read-only.
       - GENCC_LINK_DATA__DATA_DIR=/data
-      - GENCC_LINK_DATA__AUTO_BOOTSTRAP=true
-      - GENCC_LINK_DATA__REFRESH_ENABLED=true
-      - GENCC_LINK_DATA__REFRESH_INTERVAL_HOURS=24
+      - GENCC_LINK_DATA__DB_FILENAME=current/gencc.sqlite
+      - GENCC_LINK_DATA__AUTO_BOOTSTRAP=false
+      - GENCC_LINK_DATA__REFRESH_ENABLED=false
       - GENCC_LINK_DATA__CACHE_SIZE=${GENCC_CACHE_SIZE:-2000}
       - GENCC_LINK_DATA__CACHE_TTL=${GENCC_CACHE_TTL:-7200}
     # env_file provided via the --env-file flag for consistency with siblings.
@@ -45,8 +81,7 @@ services:
       interval: 30s
       timeout: 10s
       retries: 5
-      # First boot downloads + builds the GenCC database before serving.
-      start_period: 180s
+      start_period: 30s
     restart: unless-stopped
     # GeneFoundry deploy contract: the fleet controller (strato_v6_docker_npm,
     # scripts/utils/deployment_preflight.py) accepts a declared user only as numeric
@@ -55,11 +90,9 @@ services:
     user: "999:999"
     read_only: true
     tmpfs:
-      # TMPDIR=/tmp (set in the image) - download/build scratch space.
       - /tmp:rw,noexec,nosuid,size=256m,mode=1777
     volumes:
-      # Persist the built ~24MB SQLite database across container restarts.
-      - gencc-data:/data
+      - gencc-data:/data:ro
     networks:
       - gencc_link_internal_net
       - npm_proxy_network

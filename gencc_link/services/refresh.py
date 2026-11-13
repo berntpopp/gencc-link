@@ -6,8 +6,8 @@ download quota). When the export changed, it rebuilds atomically and hot-reloads
 the served database. The blocking download+build runs in a worker thread so the
 event loop is never stalled.
 
-The first run is scheduled one interval *after* startup, because the container
-entrypoint (or the lifespan bootstrap) already ensures fresh data at boot. Only
+The first run is scheduled one interval *after* startup, because the
+lifespan bootstrap already ensures data at boot (local dev; the image disables this). Only
 the unified/http transports start this scheduler; stdio is short-lived and does
 not.
 

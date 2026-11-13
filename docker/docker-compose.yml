@@ -1,8 +1,12 @@
 name: gencc-link
 
 services:
-  gencc-link:
-    build:
+  # Restores the pinned GenCC data release (a `data-gencc-*` GitHub release of
+  # this repo, digest-verified) into the volume, then exits. Pins live in
+  # gencc_link/config.py and container-release.json; nothing is downloaded from
+  # thegencc.org at boot.
+  gencc-data-init:
+    build: &build
       context: ..
       dockerfile: docker/Dockerfile
       target: production
@@ -10,7 +14,42 @@ services:
         APP_VERSION: ${APP_VERSION:-0.0.0}
         VCS_REF: ${VCS_REF:-0000000000000000000000000000000000000000}
         BUILD_DATE: ${BUILD_DATE:-1970-01-01T00:00:00Z}
+    image: gencc-link:latest
+    command: ["gencc-link-data", "materialize-data"]
+    environment:
+      GENCC_LINK_IMMUTABLE_DATA__REFERENCE_ROOT: /data
+    volumes:
+      - gencc-data:/data
+    restart: "no"
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=64m,mode=1777
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    init: true
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+          cpus: "1.0"
+          pids: 256
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    networks:
+      - gencc-network
+
+  gencc-link:
+    build: *build
+    image: gencc-link:latest
     container_name: gencc-link
+    depends_on:
+      gencc-data-init:
+        condition: service_completed_successfully
     # Dev/local only — loopback-bound (127.0.0.1) so copying this file to a
     # server never publishes the unauthenticated backend on the public IP
     # (Docker would otherwise bind 0.0.0.0 and bypass the host firewall).
@@ -30,27 +69,19 @@ services:
       GENCC_LINK_MCP_PATH: /mcp
       GENCC_LINK_LOG_LEVEL: INFO
       GENCC_LINK_LOG_FORMAT: json
-      # Data lifecycle (see docs/data-lifecycle.md):
-      #   - the entrypoint builds the database ONCE on startup before serving
-      #   - the in-app scheduler conditionally refreshes it every 24h and
-      #     hot-reloads it on change
-      # The named volume below keeps the ~24MB database across restarts so a
-      # restart re-uses it (the entrypoint's conditional request returns 304).
+      # Serve the restored release read-only (see docs/data-lifecycle.md).
       GENCC_LINK_DATA__DATA_DIR: /data
+      GENCC_LINK_DATA__DB_FILENAME: current/gencc.sqlite
       GENCC_LINK_DATA__AUTO_BOOTSTRAP: "false"
-      GENCC_LINK_DATA__REFRESH_ENABLED: "true"
-      GENCC_LINK_DATA__REFRESH_INTERVAL_HOURS: "24"
+      GENCC_LINK_DATA__REFRESH_ENABLED: "false"
     volumes:
-      # Persist the built ~24MB SQLite database across container restarts.
-      - gencc-data:/data
+      - gencc-data:/data:ro
     healthcheck:
       test: ["CMD", "curl", "-f", "-H", "Host: localhost", "http://127.0.0.1:8000/health"]
       interval: 30s
       timeout: 10s
       retries: 3
-      # First boot builds the database in the entrypoint before serving; allow
-      # time for the initial download + build.
-      start_period: 150s
+      start_period: 30s
     restart: unless-stopped
     logging:
       driver: "json-file"
