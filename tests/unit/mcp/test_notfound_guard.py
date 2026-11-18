@@ -40,7 +40,7 @@ from fastmcp import Client
 from fastmcp.exceptions import ResourceError
 from mcp.shared.memory import create_client_server_memory_streams
 from mcp.shared.message import SessionMessage
-from mcp.types import INVALID_PARAMS, JSONRPCMessage, JSONRPCRequest
+from mcp.types import INVALID_PARAMS, JSONRPCNotification, JSONRPCRequest
 
 from gencc_link.mcp.facade import create_gencc_mcp
 from gencc_link.mcp.untrusted_content import FORBIDDEN_CODEPOINTS
@@ -274,24 +274,46 @@ async def _raw_read_resource_error(uri: str) -> tuple[mcp_types.JSONRPCError | N
                         server_read,
                         server_write,
                         init_options,
-                        stateless=True,  # start Initialized: skip the handshake
                         raise_exceptions=False,
                     )
 
                 task_group.start_soon(_run)
+                # SDK v2 has no ``stateless`` shortcut: complete the legacy handshake.
+                await client_write.send(
+                    SessionMessage(
+                        message=JSONRPCRequest(
+                            jsonrpc="2.0",
+                            id=0,
+                            method="initialize",
+                            params={
+                                "protocolVersion": "2025-06-18",
+                                "capabilities": {},
+                                "clientInfo": {"name": "test", "version": "0"},
+                            },
+                        )
+                    )
+                )
+                await client_read.receive()
+                await client_write.send(
+                    SessionMessage(
+                        message=JSONRPCNotification(
+                            jsonrpc="2.0", method="notifications/initialized"
+                        )
+                    )
+                )
                 request = JSONRPCRequest(
                     jsonrpc="2.0",
                     id=1,
                     method="resources/read",
                     params={"uri": uri},
                 )
-                await client_write.send(SessionMessage(message=JSONRPCMessage(request)))
+                await client_write.send(SessionMessage(message=request))
                 with anyio.fail_after(5):
                     for _ in range(8):
                         message = await client_read.receive()
                         if isinstance(message, Exception):
                             raise message
-                        candidate = message.message.root
+                        candidate = message.message
                         if isinstance(candidate, mcp_types.JSONRPCError):
                             root = candidate
                             break

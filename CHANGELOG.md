@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-11-18
+
+### Changed
+
+- Upgrade FastMCP 3.4 -> 4.2.2 and MCP SDK 1.x -> 2.x; supports the 2026-07-28 sessionless protocol era alongside the legacy handshake.
+- Not-found reflection guard: the Layer-3 protocol backstop is ported to the SDK v2 handler registry (`get_request_handler` / `add_request_handler`); resource/prompt dispatch failures keep their fixed, input-free messages and now carry JSON-RPC code -32602 explicitly.
+- Logging: `httpx2` / `httpcore2` loggers (FastMCP 4's HTTP stack) are suppressed to WARNING alongside `httpx` / `httpcore`.
+
 ## [0.9.2] - 2026-11-13
 
 ### Changed

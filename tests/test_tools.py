@@ -51,7 +51,7 @@ async def test_all_tools_suppress_output_schema(mcp_client) -> None:
     tools = await mcp_client.list_tools()
     assert tools
     for t in tools:
-        assert t.outputSchema is None, t.name
+        assert t.output_schema is None, t.name
 
 
 async def test_search_genes_success(mcp_client) -> None:

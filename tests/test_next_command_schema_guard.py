@@ -46,7 +46,7 @@ async def _collect(mcp_client: object, tools: list[Any]) -> list[dict[str, Any]]
     # Registry-derived: one valid call per tool, built from its own examples.
     calls: list[tuple[str, dict[str, Any]]] = []
     for t in tools:
-        args = _valid_args_from_examples(t.inputSchema or {})
+        args = _valid_args_from_examples(t.input_schema or {})
         if args is not None:
             calls.append((t.name, args))
     # A few extra paths the example-built calls don't reach: pagination follow-ups
@@ -70,7 +70,7 @@ async def _collect(mcp_client: object, tools: list[Any]) -> list[dict[str, Any]]
 
 async def test_every_next_command_is_valid_against_its_target_schema(mcp_client) -> None:
     tools = await _tools(mcp_client)
-    validators = {t.name: Draft202012Validator(t.inputSchema or {}) for t in tools}
+    validators = {t.name: Draft202012Validator(t.input_schema or {}) for t in tools}
 
     affordances = await _collect(mcp_client, tools)
     assert affordances, "expected the representative calls to emit next_commands"
@@ -88,14 +88,14 @@ async def test_every_next_command_is_valid_against_its_target_schema(mcp_client)
 async def test_the_guard_has_teeth(mcp_client) -> None:
     """A next_command missing a required arg MUST be caught (proves the guard works)."""
     tools = await _tools(mcp_client)
-    schema = next(t.inputSchema for t in tools if t.name == "search_genes")
+    schema = next(t.input_schema for t in tools if t.name == "search_genes")
     validator = Draft202012Validator(schema)
     # `query` is required; a cursor-only affordance (a broken pagination shape) is invalid.
     assert list(validator.iter_errors({"cursor": "abc"})), (
         "guard must reject an affordance missing required `query`"
     )
     # A wrong-name affordance (the exact D1 shape) is also invalid.
-    assertion_schema = next(t.inputSchema for t in tools if t.name == "get_gene_disease_assertion")
+    assertion_schema = next(t.input_schema for t in tools if t.name == "get_gene_disease_assertion")
     v2 = Draft202012Validator(assertion_schema)
     assert list(v2.iter_errors({"gene": "HGNC:1", "disease": "MONDO:1"})), (
         "guard must reject the `gene=` D1 affordance shape"
