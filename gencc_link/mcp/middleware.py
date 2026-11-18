@@ -16,7 +16,7 @@ from typing import Any
 
 from fastmcp.exceptions import ValidationError as FastMCPValidationError
 from fastmcp.server.middleware import CallNext, Middleware, MiddlewareContext
-from fastmcp.tools.tool import ToolResult
+from fastmcp.tools import ToolResult
 from pydantic import ValidationError as PydanticValidationError
 
 from gencc_link.mcp.envelope import validation_error_envelope
