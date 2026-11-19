@@ -265,7 +265,10 @@ def _error_envelope(
     meta: dict[str, Any] = {"tool": context.tool_name, **_provenance_meta(is_error=True)}
     meta["request_id"] = request_id
     meta["elapsed_ms"] = elapsed_ms
-    nexts = recovery_commands(context.tool_name, error_code, context.arguments, field_name)
+    candidates = exc.candidates if isinstance(exc, NotFoundError) else None
+    nexts = recovery_commands(
+        context.tool_name, error_code, context.arguments, field_name, candidates
+    )
     if nexts:
         meta["next_commands"] = nexts
     envelope: dict[str, Any] = {
@@ -277,6 +280,8 @@ def _error_envelope(
         "recovery_action": _recovery_action(error_code, retryable),
         "_meta": meta,
     }
+    if candidates:
+        envelope["candidates"] = candidates
     field_errors = _field_errors(exc)
     if field_errors is not None:
         envelope["field_errors"] = field_errors

@@ -120,7 +120,11 @@ def after_assertion(gene: str, disease: str) -> list[dict[str, Any]]:
 
 
 def recovery_commands(
-    tool: str, error_code: str, arguments: dict[str, Any], field: str | None
+    tool: str,
+    error_code: str,
+    arguments: dict[str, Any],
+    field: str | None,
+    candidates: list[dict[str, Any]] | None = None,
 ) -> list[dict[str, Any]]:
     """Ready-to-call recovery steps for an error envelope (empty when none apply).
 
@@ -135,7 +139,11 @@ def recovery_commands(
         if tool == "get_gene_curations" and gene_in:
             return [cmd("search_genes", query=gene_in)]
         if tool == "get_disease_curations" and disease_in:
-            return [cmd("search_diseases", query=disease_in)]
+            out = [cmd("search_diseases", query=disease_in)]
+            if disease_in.upper().startswith("MONDO:"):
+                # A grouping MONDO term: GenCC curates its children, not the term itself.
+                out.append(cmd("mondo_get_disease_descendants", term=disease_in))
+            return out
         if tool == "get_gene_disease_assertion":
             out: list[dict[str, Any]] = []
             if gene_in:
@@ -145,12 +153,22 @@ def recovery_commands(
             return out
         if tool == "resolve_identifier" and query_in:
             kind = arguments.get("kind", "auto")
-            out = [] if kind == "disease" else [cmd("search_genes", query=query_in)]
+            # Section 2a: get_* on the top candidates first, then search, then Mondo.
+            out = [
+                cmd("get_gene_curations", gene_symbol=c["id"])
+                if c["kind"] == "gene"
+                else cmd("get_disease_curations", disease=c["id"])
+                for c in (candidates or [])[:2]
+            ]
+            if kind != "disease":
+                out.append(cmd("search_genes", query=query_in))
             if kind != "gene":
                 out.append(cmd("search_diseases", query=query_in))
             if kind != "gene" and not query_in.upper().startswith("MONDO:"):
                 # Cross-server, namespaced: the router passes prefixed names through.
                 out.append(cmd("mondo_resolve_disease", query=query_in))
+            elif kind != "gene":
+                out.append(cmd("mondo_get_disease_descendants", term=query_in))
             return out
     if error_code == "ambiguous_query" and tool == "resolve_identifier" and query_in:
         return [

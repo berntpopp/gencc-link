@@ -17,6 +17,7 @@ from gencc_link.models.enums import RESPONSE_MODES, ResponseMode
 from gencc_link.services import shaping
 from gencc_link.services.batch import batch_payload, dedupe_batch
 from gencc_link.services.cache import TTLCache
+from gencc_link.services.candidates import resolve_miss
 from gencc_link.services.cursor import decode_paged_cursor
 from gencc_link.services.filters import validate_find_filters
 
@@ -261,7 +262,8 @@ class GenCCService:
         if summary is None:
             raise NotFoundError(
                 f"No GenCC disease found for {disease!r}. Try search_diseases to resolve a "
-                "label or MONDO id."
+                "label or MONDO id. GenCC curates specific disease terms: for a grouping MONDO "
+                "term, list its descendants with mondo_get_disease_descendants and query those."
             )
         pairs = self._repo.get_disease_gene_pairs(summary.disease_curie)
         total = len(pairs)
@@ -574,6 +576,12 @@ class GenCCService:
             gene = self._repo.resolve_gene(q)
             if gene is not None:
                 result["gene"] = shaping.gene_summary_dict(gene, "compact")
+                if gene.gene_curie.lower() != q.lower() and gene.gene_symbol.lower() != q.lower():
+                    result["resolved_from"] = {
+                        "input": q,
+                        "form": "previous_symbol",
+                        "resolved_to": gene.gene_curie,
+                    }
         if kind in ("auto", "disease"):
             disease = self._repo.resolve_disease(q)
             if disease is not None:
@@ -586,14 +594,5 @@ class GenCCService:
                 candidates=[result["gene"]["gene_curie"], result["disease"]["disease_curie"]],
             )
         if result["gene"] is None and result["disease"] is None:
-            scope = {"gene": "GenCC gene", "disease": "GenCC disease"}.get(
-                kind, "GenCC gene or disease"
-            )
-            mondo = f", or mondo_resolve_disease(query={q!r}) for a MONDO id to pass back here"
-            if q.upper().startswith("MONDO:"):  # Mondo is the disease front door; no id loop
-                mondo = ""
-            hint = {"gene": "Try search_genes.", "disease": f"Try search_diseases{mondo}."}.get(
-                kind, f"Try search_genes or search_diseases{mondo}."
-            )
-            raise NotFoundError(f"Could not resolve {query!r} to a {scope}. {hint}")
+            raise resolve_miss(self._repo, query, kind)
         return result

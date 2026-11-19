@@ -309,7 +309,9 @@ def register_assertion_tools(mcp: FastMCP) -> None:
         tags={"discovery"},
         description=(
             "Resolve free text to a canonical GenCC gene (HGNC) and/or disease "
-            "(MONDO) identifier by exact symbol/id/title match. Use kind='gene' or "
+            "(MONDO) identifier by exact symbol/id/title match (a previous gene symbol "
+            "resolves and is echoed in resolved_from). A miss returns not_found with typed "
+            "near-match candidates. Use kind='gene' or "
             "kind='disease' to disambiguate; default 'auto' tries both and returns "
             "ambiguous_query if the text matches both a gene and a disease. A disease "
             "name GenCC does not carry: resolve it with mondo_resolve_disease and pass the "

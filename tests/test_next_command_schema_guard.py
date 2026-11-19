@@ -35,6 +35,18 @@ _MONDO_RESOLVE_DISEASE = {
     "additionalProperties": False,
 }
 
+_MONDO_GET_DISEASE_DESCENDANTS = {
+    "type": "object",
+    "required": ["term"],
+    "properties": {
+        "term": {"type": "string"},
+        "limit": {"type": "integer"},
+        "offset": {"type": "integer"},
+        "response_mode": {"enum": ["minimal", "compact", "standard", "full"]},
+    },
+    "additionalProperties": False,
+}
+
 
 async def _tools(mcp_client: object) -> list[Any]:
     return await mcp_client.list_tools()  # type: ignore[attr-defined]
@@ -69,6 +81,8 @@ async def _collect(mcp_client: object, tools: list[Any]) -> list[dict[str, Any]]
         ("get_gene_curations", {"gene_symbol": "NOTAGENE"}),  # not_found recovery
         ("find_curations", {"submitter": ["__bogus__"]}),  # invalid_input recovery
         ("search_genes", {"query": "   "}),  # blank-query recovery
+        ("get_disease_curations", {"disease": "MONDO:0000001"}),  # grouping-term recovery
+        ("resolve_identifier", {"query": "muscular dystrophy"}),  # candidates (#130)
     ]
     out: list[dict[str, Any]] = []
     for name, args in calls:
@@ -84,6 +98,9 @@ async def test_every_next_command_is_valid_against_its_target_schema(mcp_client)
     validators = {t.name: Draft202012Validator(t.input_schema or {}) for t in tools}
     # Cross-server affordances (#125), pinned to the live sibling schema (mondo-link).
     validators["mondo_resolve_disease"] = Draft202012Validator(_MONDO_RESOLVE_DISEASE)
+    validators["mondo_get_disease_descendants"] = Draft202012Validator(
+        _MONDO_GET_DISEASE_DESCENDANTS
+    )
 
     affordances = await _collect(mcp_client, tools)
     assert affordances, "expected the representative calls to emit next_commands"

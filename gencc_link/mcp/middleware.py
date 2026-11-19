@@ -12,6 +12,7 @@ error the client sees is chainable, never a raw Pydantic/JSON-RPC dump.
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from fastmcp.exceptions import ValidationError as FastMCPValidationError
@@ -20,6 +21,8 @@ from fastmcp.tools import ToolResult
 from pydantic import ValidationError as PydanticValidationError
 
 from gencc_link.mcp.envelope import validation_error_envelope
+
+logger = logging.getLogger(__name__)
 
 
 class InputValidationMiddleware(Middleware):
@@ -69,6 +72,15 @@ class InputValidationMiddleware(Middleware):
             tool_name=context.message.name,
             arguments=dict(context.message.arguments or {}),
             exc=exc,
+        )
+        # Field NAMES and the pydantic error type only, never the value (issue #130):
+        # field names come from the envelope's redacted field_errors (unknown keys ->
+        # "argument"); FastMCP's own record is scrubbed in logging_config.
+        logger.warning(
+            "mcp_arg_error tool=%s fields=%s types=%s",
+            envelope["_meta"]["tool"],
+            ",".join(e["field"] for e in envelope.get("field_errors", [])),
+            ",".join(sorted({e["type"] for e in exc.errors()})),
         )
         # isError:true is REQUIRED (Response-Envelope v1): a pre-body argument
         # validation failure is still an error the client must branch on.
