@@ -6,6 +6,8 @@ so the hierarchy here mirrors the error taxonomy advertised in capabilities.
 
 from __future__ import annotations
 
+from typing import Any
+
 
 class GenCCError(Exception):
     """Base exception for all GenCC-Link errors."""
@@ -28,6 +30,10 @@ class InvalidInputError(GenCCError):
 
 class NotFoundError(GenCCError):
     """Raised when a requested gene, disease, or assertion does not exist."""
+
+    def __init__(self, message: str, candidates: list[dict[str, Any]] | None = None) -> None:
+        super().__init__(message)
+        self.candidates = candidates or []
 
 
 class AmbiguousQueryError(GenCCError):

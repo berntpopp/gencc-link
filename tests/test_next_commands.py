@@ -133,7 +133,29 @@ class TestRecoveryCommands:
         out = nc.recovery_commands(
             "get_disease_curations", "not_found", {"disease": "MONDO:9"}, None
         )
-        assert out == [{"tool": "search_diseases", "arguments": {"query": "MONDO:9"}}]
+        # #130: a grouping MONDO term has no GenCC rows; its children may.
+        assert out == [
+            {"tool": "search_diseases", "arguments": {"query": "MONDO:9"}},
+            {"tool": "mondo_get_disease_descendants", "arguments": {"term": "MONDO:9"}},
+        ]
+
+    def test_not_found_resolve_identifier_candidates_first(self) -> None:
+        """#130 / Envelope 2a: get_* on the top candidates precede the searches."""
+        cands = [
+            {"kind": "disease", "id": "MONDO:1"},
+            {"kind": "gene", "id": "HGNC:2"},
+            {"kind": "disease", "id": "MONDO:3"},
+        ]
+        out = nc.recovery_commands("resolve_identifier", "not_found", {"query": "foo"}, None, cands)
+        assert out[:2] == [
+            {"tool": "get_disease_curations", "arguments": {"disease": "MONDO:1"}},
+            {"tool": "get_gene_curations", "arguments": {"gene_symbol": "HGNC:2"}},
+        ]
+        assert [c["tool"] for c in out[2:]] == [
+            "search_genes",
+            "search_diseases",
+            "mondo_resolve_disease",
+        ]
 
     def test_not_found_assertion_two_steps(self) -> None:
         out = nc.recovery_commands(
@@ -170,7 +192,8 @@ class TestRecoveryCommands:
         mondo_id = nc.recovery_commands(
             "resolve_identifier", "not_found", {"query": "MONDO:0001734", "kind": "disease"}, None
         )
-        assert [c["tool"] for c in mondo_id] == ["search_diseases"]  # no loop back to Mondo
+        # No loop back to mondo_resolve_disease; a grouping id gets its descendants.
+        assert [c["tool"] for c in mondo_id] == ["search_diseases", "mondo_get_disease_descendants"]
 
     def test_invalid_submitter_points_to_list(self) -> None:
         out = nc.recovery_commands("find_curations", "invalid_input", {}, "submitter")

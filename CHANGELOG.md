@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-11-19
+
+### Added
+
+- `resolve_identifier` miss returns `candidates` from the gene/disease search, typed per
+  Response-Envelope 2a (`match_type` `all_terms`/`partial`, `score`, `match: "weak"`), with
+  `get_*` on the top two first in `_meta.next_commands` (#130).
+- A previous gene symbol (the symbol a GenCC submitter used) resolves when it maps to one gene;
+  `resolve_identifier` echoes it as `resolved_from` (#130).
+- A MONDO miss in `get_disease_curations` / `resolve_identifier` points at
+  `mondo_get_disease_descendants` (grouping terms have no GenCC rows; their children may) (#130).
+- Argument-validation errors log `mcp_arg_error tool= fields= types=` (names, never values) (#130).
+
 ## [0.10.4] - 2026-11-19
 
 ### Changed

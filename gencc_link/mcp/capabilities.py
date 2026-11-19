@@ -121,7 +121,8 @@ def _static_surface() -> dict[str, Any]:
             {
                 "code": "not_found",
                 "operational_only": False,
-                "when": "a well-formed identifier resolves to nothing",
+                "when": "a well-formed identifier resolves to nothing; a resolve_identifier "
+                "miss carries candidates [{kind, id, label, match_type, score, match?}]",
             },
             {
                 "code": "ambiguous_query",

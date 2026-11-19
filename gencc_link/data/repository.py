@@ -188,8 +188,12 @@ class GenCCRepository:
     def resolve_gene(self, identifier: str) -> GeneSummary | None:
         """Resolve an exact HGNC CURIE or gene symbol to a gene summary.
 
+        A symbol that is not a current GenCC symbol falls back to the symbol a
+        submitter used (``submitted_as_hgnc_symbol``, i.e. a previous HGNC symbol)
+        when it maps to exactly one gene.
+
         Args:
-            identifier: An ``HGNC:nnnn`` CURIE or an exact gene symbol.
+            identifier: An ``HGNC:nnnn`` CURIE or an exact (current or previous) symbol.
 
         Returns:
             The matching :class:`GeneSummary`, or ``None`` if not found.
@@ -205,6 +209,16 @@ class GenCCRepository:
                 "SELECT * FROM genes WHERE gene_symbol = ? COLLATE NOCASE",
                 (identifier,),
             ).fetchone()
+            if row is None:
+                # ponytail: unindexed scan (~4 ms on the 30k-row release, misses only);
+                # index submitted_as_hgnc_symbol if the export grows ~10x.
+                prev = self._conn.execute(
+                    "SELECT DISTINCT gene_curie FROM submissions "
+                    "WHERE submitted_as_hgnc_symbol = ? COLLATE NOCASE LIMIT 2",
+                    (identifier,),
+                ).fetchall()
+                if len(prev) == 1:  # an ambiguous previous symbol is left to search
+                    return self._gene_summary(prev[0]["gene_curie"])
         return gene_summary_from_row(row) if row else None
 
     # -- diseases ----------------------------------------------------------------

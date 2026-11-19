@@ -2,8 +2,13 @@
 
 from __future__ import annotations
 
+import shutil
+import sqlite3
+from pathlib import Path
+
 import pytest
 
+from gencc_link.data.repository import GenCCRepository
 from gencc_link.exceptions import AmbiguousQueryError, InvalidInputError, NotFoundError
 from gencc_link.models import BuildMeta, DiseaseSummary, GeneSummary
 from gencc_link.services.gencc_service import GenCCService
@@ -268,8 +273,53 @@ class TestResolveIdentifier:
         assert out["gene"] is not None
 
     def test_not_found(self, service: GenCCService) -> None:
-        with pytest.raises(NotFoundError):
+        with pytest.raises(NotFoundError) as exc:
             service.resolve_identifier("totally-unknown-xyz")
+        assert exc.value.candidates == []
+
+    def test_miss_returns_typed_candidates(self, service: GenCCService) -> None:
+        """#130: an inexact disease name returns ranked, typed near matches."""
+        with pytest.raises(NotFoundError) as exc:
+            service.resolve_identifier("muscular dystrophy", kind="disease")
+        cands = exc.value.candidates
+        assert {c["label"] for c in cands} == {
+            "Duchenne muscular dystrophy",
+            "Emery-Dreifuss muscular dystrophy",
+        }
+        assert all(c["match_type"] == "all_terms" and "match" not in c for c in cands)
+        assert cands[0]["score"] >= cands[-1]["score"] > 0
+        assert "candidates" in str(exc.value)
+
+    def test_miss_partial_candidate_is_weak(self, service: GenCCService) -> None:
+        with pytest.raises(NotFoundError) as exc:
+            service.resolve_identifier("Marf", kind="disease")
+        (cand,) = exc.value.candidates
+        assert cand["label"] == "Marfan syndrome"
+        assert cand["match_type"] == "partial" and cand["match"] == "weak"
+
+    def test_previous_symbol_resolves(self, built_db_path: Path, tmp_path: Path) -> None:
+        """#130: a symbol a submitter used (previous HGNC symbol) resolves, echoed."""
+        db = tmp_path / "prev.sqlite"
+        shutil.copy(built_db_path, db)
+        with sqlite3.connect(db) as conn:
+            conn.execute(
+                "UPDATE submissions SET submitted_as_hgnc_symbol = 'OLDSKI' "
+                "WHERE gene_symbol = 'SKI'"
+            )
+        repo = GenCCRepository(db)
+        try:
+            out = GenCCService(repo, cache_size=0, cache_ttl=0).resolve_identifier("oldski")
+        finally:
+            repo.close()
+        assert out["gene"]["gene_symbol"] == "SKI"
+        assert out["resolved_from"] == {
+            "input": "oldski",
+            "form": "previous_symbol",
+            "resolved_to": out["gene"]["gene_curie"],
+        }
+
+    def test_current_symbol_has_no_resolved_from(self, service: GenCCService) -> None:
+        assert "resolved_from" not in service.resolve_identifier("ski", kind="gene")
 
     def test_empty_raises(self, service: GenCCService) -> None:
         with pytest.raises(InvalidInputError):
