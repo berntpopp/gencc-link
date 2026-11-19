@@ -148,8 +148,8 @@ def register_gene_tools(mcp: FastMCP) -> None:
         output_schema=None,
         tags={"gene", "batch"},
         description=(
-            "Batch form of get_gene_curations: pass a list of gene symbols or HGNC "
-            "ids (max 20) and get each gene's disease assertions in one call. "
+            "Batch form of get_gene_curations: returns each gene's disease "
+            "assertions for a list of gene symbols or HGNC ids (max 20) in one call. "
             "Unresolvable inputs come back in `unresolved` and the call still "
             "succeeds. Each result block mirrors get_gene_curations (gene summary + "
             "consensus diseases). Use limit_per_gene to cap diseases per gene and "

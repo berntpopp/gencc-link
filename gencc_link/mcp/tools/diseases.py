@@ -101,10 +101,12 @@ def register_disease_tools(mcp: FastMCP) -> None:
         output_schema=None,
         tags={"disease"},
         description=(
-            "Return all genes asserted for one disease (by MONDO/OMIM id or title), "
-            "each with a consensus classification across submitters and a conflict "
-            "flag. Widen response_mode for the per-submitter breakdown. Page via the "
-            "release-bound truncated.next_cursor (surfaced as _meta.next_commands[0])."
+            "Single-disease lookup: returns all genes asserted for ONE disease (one "
+            "MONDO/OMIM id or title), each with a consensus classification across "
+            "submitters and a conflict flag. For several diseases in one call use "
+            "get_diseases_curations (plural). Widen response_mode for the "
+            "per-submitter breakdown. Page via the release-bound truncated.next_cursor "
+            "(surfaced as _meta.next_commands[0])."
         ),
     )
     async def get_disease_curations(
@@ -146,8 +148,10 @@ def register_disease_tools(mcp: FastMCP) -> None:
         output_schema=None,
         tags={"disease", "batch"},
         description=(
-            "Batch form of get_disease_curations: pass a list of disease ids or "
-            "titles (max 20) and get each disease's gene assertions in one call. "
+            "Multi-disease batch: returns the asserted genes (consensus "
+            "classification + conflict flag) for a LIST of up to 20 disease ids or "
+            "titles in one call; for a single disease use get_disease_curations "
+            "(singular). "
             "Unresolvable inputs come back in `unresolved` and the call still "
             "succeeds. Each result block mirrors get_disease_curations (disease "
             "summary + consensus genes). Use limit_per_disease to cap genes per "
