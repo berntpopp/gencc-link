@@ -25,6 +25,17 @@ from jsonschema import Draft202012Validator
 pytestmark = pytest.mark.mcp
 
 
+_MONDO_RESOLVE_DISEASE = {
+    "type": "object",
+    "required": ["query"],
+    "properties": {
+        "query": {"type": "string"},
+        "response_mode": {"enum": ["minimal", "compact", "standard", "full"]},
+    },
+    "additionalProperties": False,
+}
+
+
 async def _tools(mcp_client: object) -> list[Any]:
     return await mcp_client.list_tools()  # type: ignore[attr-defined]
 
@@ -71,6 +82,8 @@ async def _collect(mcp_client: object, tools: list[Any]) -> list[dict[str, Any]]
 async def test_every_next_command_is_valid_against_its_target_schema(mcp_client) -> None:
     tools = await _tools(mcp_client)
     validators = {t.name: Draft202012Validator(t.input_schema or {}) for t in tools}
+    # Cross-server affordances (#125), pinned to the live sibling schema (mondo-link).
+    validators["mondo_resolve_disease"] = Draft202012Validator(_MONDO_RESOLVE_DISEASE)
 
     affordances = await _collect(mcp_client, tools)
     assert affordances, "expected the representative calls to emit next_commands"

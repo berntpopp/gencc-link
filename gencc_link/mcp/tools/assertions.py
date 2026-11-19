@@ -311,7 +311,9 @@ def register_assertion_tools(mcp: FastMCP) -> None:
             "Resolve free text to a canonical GenCC gene (HGNC) and/or disease "
             "(MONDO) identifier by exact symbol/id/title match. Use kind='gene' or "
             "kind='disease' to disambiguate; default 'auto' tries both and returns "
-            "ambiguous_query if the text matches both a gene and a disease."
+            "ambiguous_query if the text matches both a gene and a disease. A disease "
+            "name GenCC does not carry: resolve it with mondo_resolve_disease and pass the "
+            "MONDO id back."
         ),
     )
     async def resolve_identifier(
@@ -346,5 +348,5 @@ def register_assertion_tools(mcp: FastMCP) -> None:
         return await run_mcp_tool(
             "resolve_identifier",
             call,
-            context=McpErrorContext("resolve_identifier", arguments={"query": query}),
+            context=McpErrorContext("resolve_identifier", arguments={"query": query, "kind": kind}),
         )

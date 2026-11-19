@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.10.2] - 2026-11-19
+
+### Fixed
+
+- `resolve_identifier` disease-name misses now point to Mondo, the fleet's disease front
+  door (#125): GenCC carries one title per MONDO id, so a synonym or alternative name missed
+  with only "Try search_diseases.". The `not_found` message and `_meta.next_commands` now
+  name `mondo_resolve_disease(query=<same text>)` (alongside `search_diseases`) and say the
+  MONDO id it returns can be passed back here or to `get_disease_curations`. A miss on a
+  MONDO id is not sent back to Mondo. `kind='gene'` misses are unchanged.
+
 ## [0.10.1] - 2026-11-18
 
 ### Security

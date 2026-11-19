@@ -589,9 +589,11 @@ class GenCCService:
             scope = {"gene": "GenCC gene", "disease": "GenCC disease"}.get(
                 kind, "GenCC gene or disease"
             )
-            hint = {
-                "gene": "Try search_genes.",
-                "disease": "Try search_diseases.",
-            }.get(kind, "Try search_genes or search_diseases.")
+            mondo = f", or mondo_resolve_disease(query={q!r}) for a MONDO id to pass back here"
+            if q.upper().startswith("MONDO:"):  # Mondo is the disease front door; no id loop
+                mondo = ""
+            hint = {"gene": "Try search_genes.", "disease": f"Try search_diseases{mondo}."}.get(
+                kind, f"Try search_genes or search_diseases{mondo}."
+            )
             raise NotFoundError(f"Could not resolve {query!r} to a {scope}. {hint}")
         return result
