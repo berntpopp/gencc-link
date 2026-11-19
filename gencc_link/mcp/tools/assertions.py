@@ -168,7 +168,7 @@ def register_assertion_tools(mcp: FastMCP) -> None:
         output_schema=None,
         tags={"assertion", "search"},
         description=(
-            "Filter aggregated gene-disease assertions by classification(s), "
+            "Returns aggregated gene-disease assertions filtered by classification(s), "
             "submitter(s), mode of inheritance, gene, disease, or conflict status, "
             "with limit/offset paging. Example: classification=['Definitive'], "
             "moi='Autosomal dominant', submitter=['ClinGen']. With NO filters it "
