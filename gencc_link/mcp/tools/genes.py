@@ -101,10 +101,11 @@ def register_gene_tools(mcp: FastMCP) -> None:
         output_schema=None,
         tags={"gene"},
         description=(
-            "Return all GenCC gene-disease validity assertions for one gene, "
-            "grouped by disease, each with a consensus classification across "
-            "submitters and a conflict flag. Identify the gene with gene_symbol "
-            "(an approved symbol OR an HGNC CURIE). Widen response_mode for the "
+            "Single-gene lookup: returns all GenCC gene-disease validity assertions "
+            "for ONE gene, grouped by disease, each with a consensus classification "
+            "across submitters and a conflict flag. Identify the gene with gene_symbol "
+            "(an approved symbol OR an HGNC CURIE). For several genes in one call use "
+            "get_genes_curations (plural). Widen response_mode for the "
             "per-submitter breakdown. Page via the release-bound "
             "truncated.next_cursor (surfaced as _meta.next_commands[0])."
         ),
@@ -148,8 +149,10 @@ def register_gene_tools(mcp: FastMCP) -> None:
         output_schema=None,
         tags={"gene", "batch"},
         description=(
-            "Batch form of get_gene_curations: returns each gene's disease "
-            "assertions for a list of gene symbols or HGNC ids (max 20) in one call. "
+            "Multi-gene batch: returns the asserted diseases (consensus "
+            "classification + conflict flag) for a LIST of up to 20 gene symbols or "
+            "HGNC ids in one call; for a single gene use get_gene_curations "
+            "(singular). "
             "Unresolvable inputs come back in `unresolved` and the call still "
             "succeeds. Each result block mirrors get_gene_curations (gene summary + "
             "consensus diseases). Use limit_per_gene to cap diseases per gene and "

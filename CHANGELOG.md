@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.10.4] - 2026-11-19
+
+### Changed
+
+- `get_gene_curations` / `get_genes_curations` descriptions lead "Single-gene lookup" / "Multi-gene batch" and point to each other.
+
 ## [0.10.3] - 2026-11-19
 
 ### Changed
