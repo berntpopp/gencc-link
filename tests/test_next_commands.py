@@ -148,7 +148,29 @@ class TestRecoveryCommands:
 
     def test_not_found_resolve_identifier(self) -> None:
         out = nc.recovery_commands("resolve_identifier", "not_found", {"query": "foo"}, None)
-        assert {c["tool"] for c in out} == {"search_genes", "search_diseases"}
+        assert {c["tool"] for c in out} == {
+            "search_genes",
+            "search_diseases",
+            "mondo_resolve_disease",
+        }
+
+    def test_not_found_resolve_identifier_disease_points_to_mondo(self) -> None:
+        """#125: a disease-name miss names Mondo, the fleet's disease front door."""
+        out = nc.recovery_commands(
+            "resolve_identifier", "not_found", {"query": "foo", "kind": "disease"}, None
+        )
+        assert out == [
+            {"tool": "search_diseases", "arguments": {"query": "foo"}},
+            {"tool": "mondo_resolve_disease", "arguments": {"query": "foo"}},
+        ]
+        gene = nc.recovery_commands(
+            "resolve_identifier", "not_found", {"query": "foo", "kind": "gene"}, None
+        )
+        assert gene == [{"tool": "search_genes", "arguments": {"query": "foo"}}]
+        mondo_id = nc.recovery_commands(
+            "resolve_identifier", "not_found", {"query": "MONDO:0001734", "kind": "disease"}, None
+        )
+        assert [c["tool"] for c in mondo_id] == ["search_diseases"]  # no loop back to Mondo
 
     def test_invalid_submitter_points_to_list(self) -> None:
         out = nc.recovery_commands("find_curations", "invalid_input", {}, "submitter")

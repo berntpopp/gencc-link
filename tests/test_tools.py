@@ -256,6 +256,19 @@ class TestEvalHardening:
             "arguments": {"query": "NOTAGENE"},
         }
 
+    async def test_resolve_disease_miss_points_to_mondo(self, mcp_client) -> None:
+        """#125: a disease-name miss chains to Mondo, the fleet's disease front door."""
+        result = await mcp_client.call_tool(
+            "resolve_identifier", {"query": "tuberous sclerosis", "kind": "disease"}
+        )
+        data = result.structured_content
+        assert data["error_code"] == "not_found"
+        assert "mondo_resolve_disease" in data["message"]
+        assert data["_meta"]["next_commands"] == [
+            {"tool": "search_diseases", "arguments": {"query": "tuberous sclerosis"}},
+            {"tool": "mondo_resolve_disease", "arguments": {"query": "tuberous sclerosis"}},
+        ]
+
     async def test_find_curations_matched_in_payload(self, mcp_client) -> None:
         result = await mcp_client.call_tool(
             "find_curations", {"classification": ["Refuted Evidence"]}

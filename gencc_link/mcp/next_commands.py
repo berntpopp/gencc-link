@@ -144,10 +144,14 @@ def recovery_commands(
                 out.append(cmd("get_disease_curations", disease=disease_in))
             return out
         if tool == "resolve_identifier" and query_in:
-            return [
-                cmd("search_genes", query=query_in),
-                cmd("search_diseases", query=query_in),
-            ]
+            kind = arguments.get("kind", "auto")
+            out = [] if kind == "disease" else [cmd("search_genes", query=query_in)]
+            if kind != "gene":
+                out.append(cmd("search_diseases", query=query_in))
+            if kind != "gene" and not query_in.upper().startswith("MONDO:"):
+                # Cross-server, namespaced: the router passes prefixed names through.
+                out.append(cmd("mondo_resolve_disease", query=query_in))
+            return out
     if error_code == "ambiguous_query" and tool == "resolve_identifier" and query_in:
         return [
             cmd("get_gene_curations", gene_symbol=query_in),
