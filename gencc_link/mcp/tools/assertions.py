@@ -12,6 +12,7 @@ from gencc_link.mcp.envelope import McpErrorContext, run_mcp_tool
 from gencc_link.mcp.next_commands import after_assertion, cmd
 from gencc_link.mcp.service_adapters import get_gencc_service
 from gencc_link.models.enums import ResolveKind, ResponseMode
+from gencc_link.services.gene_ids import reject_foreign_gene_id
 
 if TYPE_CHECKING:
     from fastmcp import FastMCP
@@ -87,17 +88,18 @@ _MODE = Annotated[
 _GENE_SYMBOL = Annotated[
     str,
     Field(
-        description="Gene identifier: an approved HGNC symbol (e.g. GLA) or an HGNC CURIE "
-        "(e.g. HGNC:4296). Exact match; resolve free text with search_genes first.",
-        examples=["GLA", "HGNC:4296"],
+        description="Gene identifier: an approved HGNC symbol (e.g. BRCA2) or an HGNC CURIE "
+        "(e.g. HGNC:1101). Exact match; resolve free text with search_genes first. An "
+        "Ensembl or NCBI Gene id is rejected with the call that converts it.",
+        examples=["BRCA2", "HGNC:1101"],
     ),
 ]
 _DISEASE = Annotated[
     str,
     Field(
-        description="Disease identifier: a MONDO CURIE (MONDO:0010526), an OMIM CURIE "
-        "(OMIM:301500), or an exact harmonized disease title.",
-        examples=["MONDO:0010526", "OMIM:301500"],
+        description="Disease identifier: a MONDO CURIE (MONDO:0012933), an OMIM CURIE "
+        "(OMIM:612555), or an exact harmonized disease title.",
+        examples=["MONDO:0012933", "OMIM:612555"],
     ),
 ]
 
@@ -139,6 +141,7 @@ def register_assertion_tools(mcp: FastMCP) -> None:
         response_mode: _MODE = "standard",
     ) -> dict[str, Any]:
         async def call() -> dict[str, Any]:
+            reject_foreign_gene_id(gene_symbol, "gene_symbol")
             payload = get_gencc_service().get_gene_disease_assertion(
                 gene_symbol, disease, response_mode=response_mode
             )
@@ -192,7 +195,7 @@ def register_assertion_tools(mcp: FastMCP) -> None:
             str | None,
             Field(
                 description="Restrict to one gene (approved symbol or HGNC CURIE); "
-                "unresolvable -> not_found.",
+                "unresolvable -> not_found, an Ensembl or NCBI Gene id -> invalid_input.",
                 examples=["BRCA1", "HGNC:1100"],
             ),
         ] = None,
@@ -260,6 +263,7 @@ def register_assertion_tools(mcp: FastMCP) -> None:
         ] = None,
     ) -> dict[str, Any]:
         async def call() -> dict[str, Any]:
+            reject_foreign_gene_id(gene_symbol or "", "gene_symbol")
             payload = get_gencc_service().find_curations(
                 gene=gene_symbol,
                 disease=disease,
@@ -336,6 +340,8 @@ def register_assertion_tools(mcp: FastMCP) -> None:
         ] = "auto",
     ) -> dict[str, Any]:
         async def call() -> dict[str, Any]:
+            if kind != "disease":
+                reject_foreign_gene_id(query, "query")
             payload = get_gencc_service().resolve_identifier(query, kind=kind)
             nexts: list[dict[str, Any]] = []
             if payload.get("gene"):

@@ -16,6 +16,7 @@ from gencc_link.mcp.next_commands import (
 )
 from gencc_link.mcp.service_adapters import get_gencc_service
 from gencc_link.models.enums import ResponseMode
+from gencc_link.services.gene_ids import reject_foreign_gene_id
 
 if TYPE_CHECKING:
     from fastmcp import FastMCP
@@ -34,7 +35,8 @@ _GENE_SYMBOL = Annotated[
     str,
     Field(
         description="Gene identifier: an approved HGNC symbol (e.g. SKI) or an HGNC CURIE "
-        "(e.g. HGNC:10896). Exact match; resolve free text with search_genes first.",
+        "(e.g. HGNC:10896). Exact match; resolve free text with search_genes first. An "
+        "Ensembl or NCBI Gene id is rejected with the call that converts it.",
         examples=["SKI", "HGNC:10896"],
     ),
 ]
@@ -69,7 +71,8 @@ def register_gene_tools(mcp: FastMCP) -> None:
         query: Annotated[
             str,
             Field(
-                description="Gene symbol, partial symbol, or HGNC id to search for.",
+                description="Gene symbol, partial symbol, or HGNC id to search for. An "
+                "Ensembl or NCBI Gene id is rejected with the call that converts it.",
                 examples=["BRCA1", "SKI"],
             ),
         ],
@@ -79,6 +82,7 @@ def register_gene_tools(mcp: FastMCP) -> None:
         cursor: _CURSOR = None,
     ) -> dict[str, Any]:
         async def call() -> dict[str, Any]:
+            reject_foreign_gene_id(query, "query")
             payload = get_gencc_service().search_genes(
                 query, response_mode=response_mode, limit=limit, offset=offset, cursor=cursor
             )
@@ -126,6 +130,7 @@ def register_gene_tools(mcp: FastMCP) -> None:
         cursor: _CURSOR = None,
     ) -> dict[str, Any]:
         async def call() -> dict[str, Any]:
+            reject_foreign_gene_id(gene_symbol, "gene_symbol")
             payload = get_gencc_service().get_gene_curations(
                 gene_symbol, response_mode=response_mode, limit=limit, offset=offset, cursor=cursor
             )
@@ -169,7 +174,8 @@ def register_gene_tools(mcp: FastMCP) -> None:
         genes: Annotated[
             list[str],
             Field(
-                description="Gene symbols or HGNC ids (max 20).",
+                description="Gene symbols or HGNC ids (max 20). An Ensembl or NCBI Gene id "
+                "is listed under `unsupported`, with the call that converts it.",
                 examples=[["BRCA2", "NAA10"]],
             ),
         ],

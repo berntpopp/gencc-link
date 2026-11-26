@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 import pytest
 
 pytestmark = pytest.mark.mcp
@@ -594,3 +596,55 @@ class TestDiagnosticsQuota:
         assert data["result"]["quota"]["daily_quota"] == 20
         assert "remaining" in data["result"]["quota"]
         assert "used_today" in data["result"]["quota"]
+
+
+class TestGeneIdentifierForms:
+    """A gene id form GenCC does not carry is never a miss, and paging names its cursor."""
+
+    @pytest.mark.parametrize(
+        ("tool", "args"),
+        [
+            ("search_genes", {"query": "ENSG00000139618"}),
+            ("get_gene_curations", {"gene_symbol": "ENSG00000139618"}),
+            ("find_curations", {"gene_symbol": "ENSG00000139618"}),
+            ("resolve_identifier", {"query": "ENSG00000139618"}),
+            (
+                "get_gene_disease_assertion",
+                {"gene_symbol": "ENSG00000139618", "disease": "MONDO:0012933"},
+            ),
+        ],
+    )
+    async def test_foreign_gene_id_is_invalid_input_with_a_converter(
+        self, mcp_client: Any, tool: str, args: dict[str, str]
+    ) -> None:
+        data = (await mcp_client.call_tool(tool, args)).structured_content
+        assert data["error_code"] == "invalid_input"
+        assert data["field"] in args
+        assert data["allowed_values"]
+        assert data["_meta"]["next_commands"] == [
+            {"tool": "hgnc_resolve_symbol", "arguments": {"query": "ENSG00000139618"}}
+        ]
+
+    async def test_batch_lists_an_unsupported_form_and_still_succeeds(
+        self, mcp_client: Any
+    ) -> None:
+        result = await mcp_client.call_tool(
+            "get_genes_curations", {"genes": ["SKI", "NCBIGene:675"]}
+        )
+        data = result.structured_content
+        assert data["success"] is True and data["count"] == 1
+        assert data["unsupported"] == [
+            {"input": "NCBIGene:675", "reason": "unsupported_identifier"}
+        ]
+        assert data["_meta"]["next_commands"][-1] == {
+            "tool": "hgnc_resolve_gene_by_xref",
+            "arguments": {"source": "entrez_id", "value": "675"},
+        }
+
+    async def test_pagination_meta_carries_next_cursor(self, mcp_client: Any) -> None:
+        data = (await mcp_client.call_tool("find_curations", {"limit": 1})).structured_content
+        pagination = data["_meta"]["pagination"]
+        assert pagination["has_more"] is True
+        assert pagination["next_cursor"] == data["truncated"]["next_cursor"]
+        data = (await mcp_client.call_tool("search_genes", {"query": "SKI"})).structured_content
+        assert data["_meta"]["pagination"]["next_cursor"] is None

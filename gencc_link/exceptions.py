@@ -28,6 +28,20 @@ class InvalidInputError(GenCCError):
         self.field = field
 
 
+class UnsupportedGeneIdError(InvalidInputError):
+    """Raised for a well-formed gene identifier in a form GenCC does not carry."""
+
+    ACCEPTED_FORMS = ("<symbol> e.g. BRCA1", "HGNC:<id> e.g. HGNC:1100")
+
+    def __init__(self, field: str, converter: dict[str, Any]) -> None:
+        super().__init__(
+            "this gene identifier form is not in GenCC; send the gene symbol or HGNC id "
+            "(next_commands holds the call that converts it).",
+            field=field,
+        )
+        self.converter = converter
+
+
 class NotFoundError(GenCCError):
     """Raised when a requested gene, disease, or assertion does not exist."""
 

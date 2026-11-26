@@ -12,6 +12,7 @@ from __future__ import annotations
 from typing import Any
 
 from gencc_link.mcp.untrusted_content import sanitize_message
+from gencc_link.services.gene_ids import foreign_gene_converter
 
 _MAX_NEXT_COMMANDS = 5
 
@@ -68,7 +69,8 @@ def after_genes_curations(payload: dict[str, Any]) -> list[dict[str, Any]]:
     not the only entry (a slot is reserved for it so it is never crowded out).
     """
     unresolved = payload.get("unresolved") or []
-    cap = _MAX_NEXT_COMMANDS - 1 if unresolved else _MAX_NEXT_COMMANDS
+    unsupported = payload.get("unsupported") or []
+    cap = _MAX_NEXT_COMMANDS - bool(unresolved) - bool(unsupported)
     nexts: list[dict[str, Any]] = []
     for block in payload.get("results") or []:
         gene = block.get("gene") or {}
@@ -85,6 +87,8 @@ def after_genes_curations(payload: dict[str, Any]) -> list[dict[str, Any]]:
             break
     if unresolved:
         nexts.append(cmd("search_genes", query=unresolved[0]["input"]))
+    if unsupported and (converter := foreign_gene_converter(unsupported[0]["input"])):
+        nexts.append(converter)
     return nexts
 
 
@@ -139,13 +143,13 @@ def recovery_commands(
         if tool == "get_gene_curations" and gene_in:
             return [cmd("search_genes", query=gene_in)]
         if tool == "get_disease_curations" and disease_in:
-            out = [cmd("search_diseases", query=disease_in)]
+            out: list[dict[str, Any]] = [cmd("search_diseases", query=disease_in)]
             if disease_in.upper().startswith("MONDO:"):
                 # A grouping MONDO term: GenCC curates its children, not the term itself.
                 out.append(cmd("mondo_get_disease_descendants", term=disease_in))
             return out
         if tool == "get_gene_disease_assertion":
-            out: list[dict[str, Any]] = []
+            out = []
             if gene_in:
                 out.append(cmd("get_gene_curations", gene_symbol=gene_in))
             if disease_in:

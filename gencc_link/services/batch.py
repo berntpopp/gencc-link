@@ -10,6 +10,7 @@ from __future__ import annotations
 from typing import Any
 
 from gencc_link.exceptions import InvalidInputError
+from gencc_link.services.gene_ids import foreign_gene_converter
 
 _BATCH_MAX = 20
 
@@ -43,6 +44,15 @@ def dedupe_batch(items: list[str], *, field: str) -> tuple[list[str], list[str]]
     return ordered, duplicates
 
 
+def split_unsupported_genes(ordered: list[str]) -> tuple[list[str], list[dict[str, str]]]:
+    """Split off the gene id forms GenCC does not carry: one bad item never fails the batch."""
+    kept = [gene for gene in ordered if foreign_gene_converter(gene) is None]
+    unsupported = [
+        {"input": gene, "reason": "unsupported_identifier"} for gene in ordered if gene not in kept
+    ]
+    return kept, unsupported
+
+
 def batch_payload(
     *,
     noun: str,
@@ -51,6 +61,7 @@ def batch_payload(
     results: list[dict[str, Any]],
     unresolved: list[dict[str, str]],
     duplicates: list[str],
+    unsupported: list[dict[str, str]] | None = None,
 ) -> dict[str, Any]:
     """Assemble a batch response: headline + received/requested counts + echoes."""
     fold = f" ({len(duplicates)} duplicate(s) folded)" if duplicates else ""
@@ -68,4 +79,6 @@ def batch_payload(
         payload["duplicates"] = duplicates
     if unresolved:
         payload["unresolved"] = unresolved
+    if unsupported:  # identifier forms GenCC does not carry; next_commands converts them
+        payload["unsupported"] = unsupported
     return payload
