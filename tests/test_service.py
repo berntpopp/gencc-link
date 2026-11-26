@@ -62,7 +62,8 @@ def test_resolve_not_found_message_is_kind_scoped(service: GenCCService) -> None
     with pytest.raises(NotFoundError) as d:
         service.resolve_identifier("NOTATHING", kind="disease")
     assert "GenCC disease." in str(d.value) and "gene or disease" not in str(d.value)
-    assert "mondo_resolve_disease(query='NOTATHING')" in str(d.value)  # #125
+    assert "mondo_resolve_disease" in str(d.value)  # #125
+    assert "NOTATHING" not in str(d.value)  # GTS-CORE-TXT-04: the query is never echoed
     with pytest.raises(NotFoundError) as a:
         service.resolve_identifier("NOTATHING", kind="auto")
     assert "gene or disease" in str(a.value)

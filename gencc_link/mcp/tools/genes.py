@@ -13,6 +13,7 @@ from gencc_link.mcp.next_commands import (
     after_genes_curations,
     after_search_genes,
     cmd,
+    safe_echo,
 )
 from gencc_link.mcp.service_adapters import get_gencc_service
 from gencc_link.models.enums import ResponseMode
@@ -89,7 +90,7 @@ def register_gene_tools(mcp: FastMCP) -> None:
             curies = [g["gene_curie"] for g in payload.get("genes", [])]
             nexts: list[dict[str, Any]] = []
             trunc = payload.get("truncated") or {}
-            if trunc.get("next_cursor"):
+            if trunc.get("next_cursor") and safe_echo(query):
                 # query is required by the schema; carry it so the affordance is
                 # callable (the service restores the real query from the cursor).
                 nexts.append(cmd("search_genes", query=query, cursor=trunc["next_cursor"]))

@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.13.1] - 2026-11-26
+
+### Fixed
+
+- `_meta.next_commands` and error messages no longer carry the caller's unvalidated input (GTS-CORE-TXT-04): not-found messages for `get_gene_curations`, `get_disease_curations`, `get_gene_disease_assertion`, `find_curations` and `resolve_identifier` name the parameter instead of echoing its value; a no-hit `search_genes`/`search_diseases`, an unresolved batch entry and a not-found recovery forward a caller value only when it has a gene-symbol/HGNC or MONDO/OMIM/Orphanet identifier shape, and otherwise point to `get_server_capabilities`; the cursor page step of a search is omitted when the query exceeds 200 characters or contains control/format characters.
+
 ## [0.13.0] - 2026-11-26
 
 ### Added

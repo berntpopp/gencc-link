@@ -51,7 +51,7 @@ def resolve_miss(repo: GenCCRepositoryProtocol, query: str, kind: str) -> NotFou
     """The ``not_found`` error for a ``resolve_identifier`` miss, with candidates."""
     q = query.strip()
     scope = {"gene": "GenCC gene", "disease": "GenCC disease"}.get(kind, "GenCC gene or disease")
-    mondo = f", or mondo_resolve_disease(query={q!r}) for a MONDO id to pass back here"
+    mondo = ", or mondo_resolve_disease for a MONDO id to pass back here"
     if q.upper().startswith("MONDO:"):  # Mondo is the disease front door; no id loop
         mondo = ""
     hint = {"gene": "Try search_genes.", "disease": f"Try search_diseases{mondo}."}.get(
@@ -61,4 +61,4 @@ def resolve_miss(repo: GenCCRepositoryProtocol, query: str, kind: str) -> NotFou
     if candidates:
         # Before the hint: messages are capped at 280 chars; next_commands repeat the hint.
         hint = f"Near matches (not resolutions) are in `candidates`. {hint}"
-    return NotFoundError(f"Could not resolve {query!r} to a {scope}. {hint}", candidates)
+    return NotFoundError(f"Could not resolve the query to a {scope}. {hint}", candidates)
