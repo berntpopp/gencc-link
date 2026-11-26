@@ -53,7 +53,8 @@ def get_gencc_service() -> GenCCService:
     _close_repo()
     db_path = ensure_database(cfg)
     repo = GenCCRepository(db_path)
-    set_data_release(repo.get_meta().gencc_run_date)
+    meta = repo.get_meta()
+    set_data_release(meta.gencc_run_date, meta.build_utc)
     _REPO = repo
     _CACHED = GenCCService(repo, cache_size=cfg.cache_size, cache_ttl=cfg.cache_ttl)
     _CACHED_MTIME = _db_mtime(db_path)

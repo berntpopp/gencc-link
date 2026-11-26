@@ -215,7 +215,7 @@ async def test_diagnostics_tool_sanitizes_last_error_both_mirrors(
 
     result = await mcp_client.call_tool("get_gencc_diagnostics", {})
     for data in _both_mirrors(result):
-        status = data["refresh"]["status"]
+        status = data["result"]["refresh"]["status"]
         assert not _has_forbidden(status["last_error"])
         assert "‮" not in status["last_error"]
         assert "\x00" not in status["last_error"]

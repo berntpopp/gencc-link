@@ -117,9 +117,9 @@ async def test_get_gene_disease_assertion_gla_conflict(mcp_client) -> None:
     )
     data = result.structured_content
     assert data["success"] is True
-    assert data["assertion"]["has_conflict"] is True
-    assert data["assertion"]["submitters"]
-    assert "submissions" in data
+    assert data["result"]["assertion"]["has_conflict"] is True
+    assert data["result"]["assertion"]["submitters"]
+    assert "submissions" in data["result"]
 
 
 async def test_assertion_full_mode_is_deduplicated(mcp_client) -> None:
@@ -128,10 +128,10 @@ async def test_assertion_full_mode_is_deduplicated(mcp_client) -> None:
         {"gene_symbol": "SKI", "disease": "MONDO:0008426", "response_mode": "full"},
     )
     d = result.structured_content
-    assert "pmids" not in d["assertion"]  # no pair-level union
-    assert any(s.get("pmids") for s in d["assertion"]["submitters"])  # attribution kept
-    assert d["submissions"]
-    row = d["submissions"][0]
+    assert "pmids" not in d["result"]["assertion"]  # no pair-level union
+    assert any(s.get("pmids") for s in d["result"]["assertion"]["submitters"])  # attribution kept
+    assert d["result"]["submissions"]
+    row = d["result"]["submissions"][0]
     # raw-extras preserved
     assert "notes" in row and "sgc_id" in row and "version_number" in row
     # de-duplicated vs submitters[] / parent
@@ -147,14 +147,14 @@ async def test_assertion_full_mode_notes_is_a_fenced_typed_object(mcp_client) ->
         {"gene_symbol": "SKI", "disease": "MONDO:0008426", "response_mode": "full"},
     )
     d = result.structured_content
-    noted = next(s for s in d["submissions"] if s["sgc_id"] == "SGC-100001")
+    noted = next(s for s in d["result"]["submissions"] if s["sgc_id"] == "SGC-100001")
     assert noted["notes"]["kind"] == "untrusted_text"
     assert noted["notes"]["text"] == "Curated from multiple unrelated families."
     assert noted["notes"]["provenance"]["source"] == "gencc"
     assert noted["notes"]["provenance"]["record_id"] == "SGC-100001"
     assert noted["notes"]["raw_sha256"]
     # a note-free submission in the same pair stays null, not a fenced object
-    unnoted = next(s for s in d["submissions"] if s["sgc_id"] != "SGC-100001")
+    unnoted = next(s for s in d["result"]["submissions"] if s["sgc_id"] != "SGC-100001")
     assert unnoted["notes"] is None
 
 
@@ -186,22 +186,22 @@ async def test_resolve_identifier_success(mcp_client) -> None:
     result = await mcp_client.call_tool("resolve_identifier", {"query": "SKI"})
     data = result.structured_content
     assert data["success"] is True
-    assert data["gene"]["gene_symbol"] == "SKI"
+    assert data["result"]["gene"]["gene_symbol"] == "SKI"
 
 
 async def test_capabilities_tool(mcp_client) -> None:
     result = await mcp_client.call_tool("get_server_capabilities", {})
     data = result.structured_content
     assert data["success"] is True
-    assert len(data["tools"]) == 12
-    assert data["data"]["status"] == "ready"
+    assert len(data["result"]["tools"]) == 12
+    assert data["result"]["data"]["status"] == "ready"
 
 
 async def test_diagnostics_tool(mcp_client) -> None:
     result = await mcp_client.call_tool("get_gencc_diagnostics", {})
     data = result.structured_content
     assert data["success"] is True
-    assert data["data"]["row_count"] == 31
+    assert data["result"]["data"]["row_count"] == 31
 
 
 async def test_error_not_found(mcp_client) -> None:
@@ -294,7 +294,7 @@ class TestEvalHardening:
     async def test_search_genes_multi_headline_names_all(self, mcp_client) -> None:
         result = await mcp_client.call_tool("search_genes", {"query": "COL"})
         data = result.structured_content
-        symbols = {g["gene_symbol"] for g in data["genes"]}
+        symbols = {g["gene_symbol"] for g in data["results"]}
         assert {"COL1A1", "COL2A1"} <= symbols
         for sym in symbols:  # fixture page is <=5 hits, so every symbol is named
             assert sym in data["headline"]
@@ -305,7 +305,7 @@ class TestEvalHardening:
             {"gene_symbol": "GLA", "disease": "MONDO:0010526", "response_mode": "full"},
         )
         data = result.structured_content
-        subs = data["assertion"]["submitters"]
+        subs = data["result"]["assertion"]["submitters"]
         assert any("submitted_as_date_iso" in s for s in subs)
 
     async def test_compact_has_citation_short(self, mcp_client) -> None:
@@ -358,7 +358,7 @@ class TestEvalHardening:
             "get_gene_disease_assertion",
             {"gene_symbol": "GLA", "disease": "MONDO:0010526", "response_mode": "minimal"},
         )
-        a = result.structured_content["assertion"]
+        a = result.structured_content["result"]["assertion"]
         assert "submitters" not in a
         assert "submitter_titles" not in a  # that's a compact-only field
         assert a["strongest_classification"]
@@ -372,7 +372,7 @@ class TestEvalHardening:
                 "get_gene_disease_assertion",
                 {"gene_symbol": "GLA", "disease": "MONDO:0010526", "response_mode": mode},
             )
-            return r.structured_content["assertion"]
+            return r.structured_content["result"]["assertion"]
 
         a_min = await assertion("minimal")
         a_com = await assertion("compact")
@@ -385,25 +385,25 @@ class TestEvalHardening:
 
     async def test_capabilities_documents_defaults_and_conflict(self, mcp_client) -> None:
         sc = (await mcp_client.call_tool("get_server_capabilities", {})).structured_content
-        assert sc["tool_defaults"]["get_gene_disease_assertion"] == "standard"
-        assert sc["tool_defaults"]["search_genes"] == "compact"
-        cs = sc["conflict_semantics"]
+        assert sc["result"]["tool_defaults"]["get_gene_disease_assertion"] == "standard"
+        assert sc["result"]["tool_defaults"]["search_genes"] == "compact"
+        cs = sc["result"]["conflict_semantics"]
         assert set(cs["supporting"]) == {"Definitive", "Strong", "Moderate"}
         assert "No Known Disease Relationship" in cs["against"]
         assert "Animal Model Only" in cs["excluded"]
-        codes = {e["code"]: e for e in sc["error_codes"]}
+        codes = {e["code"]: e for e in sc["result"]["error_codes"]}
         assert codes["internal"]["operational_only"] is True
         assert codes["invalid_input"]["operational_only"] is False
-        assert sc["error_codes_list"]  # back-compat flat list retained
-        assert "ambiguous_query_example" in sc
+        assert sc["result"]["error_codes_list"]  # back-compat flat list retained
+        assert "ambiguous_query_example" in sc["result"]
 
     async def test_capabilities_documents_field_errors_and_cursor(self, mcp_client) -> None:
         result = await mcp_client.call_tool("get_server_capabilities", {})
-        rf = result.structured_content["response_fields"]
+        rf = result.structured_content["result"]["response_fields"]
         assert "field_errors" in rf
         assert "next_cursor" in rf
         assert "cursor" in rf
-        resources = result.structured_content["resources"]
+        resources = result.structured_content["result"]["resources"]
         assert "gencc://research-use" in resources
 
     async def test_resolve_identifier_alias_removed(self, mcp_client) -> None:
@@ -463,8 +463,8 @@ class TestEvalHardening:
         second = await mcp_client.call_tool("search_genes", cont["arguments"])
         d2 = second.structured_content
         assert d2["success"] is True
-        assert {g["gene_curie"] for g in d1["genes"]}.isdisjoint(
-            {g["gene_curie"] for g in d2["genes"]}
+        assert {g["gene_curie"] for g in d1["results"]}.isdisjoint(
+            {g["gene_curie"] for g in d2["results"]}
         )
 
     async def test_search_diseases_pages_forward_with_cursor(self, mcp_client) -> None:
@@ -520,7 +520,7 @@ class TestEvalHardening:
         result = await mcp_client.call_tool("resolve_identifier", {"query": "SKI"})
         data = result.structured_content
         assert data["success"] is True
-        assert data["gene"]["gene_symbol"] == "SKI"
+        assert data["result"]["gene"]["gene_symbol"] == "SKI"
 
     async def test_empty_and_overcap_errors_are_chainable(self, mcp_client) -> None:
         # empty query
@@ -584,13 +584,13 @@ class TestDiagnosticsQuota:
 
         result = await mcp_client.call_tool("get_gencc_diagnostics", {})
         data = result.structured_content
-        assert re.fullmatch(r"[0-9a-f]{16}", data["capabilities_version"])
-        assert isinstance(data["server_version"], str)
+        assert re.fullmatch(r"[0-9a-f]{16}", data["result"]["capabilities_version"])
+        assert isinstance(data["result"]["server_version"], str)
 
     async def test_diagnostics_has_quota_block(self, mcp_client) -> None:
         result = await mcp_client.call_tool("get_gencc_diagnostics", {})
         data = result.structured_content
-        assert "quota" in data
-        assert data["quota"]["daily_quota"] == 20
-        assert "remaining" in data["quota"]
-        assert "used_today" in data["quota"]
+        assert "quota" in data["result"]
+        assert data["result"]["quota"]["daily_quota"] == 20
+        assert "remaining" in data["result"]["quota"]
+        assert "used_today" in data["result"]["quota"]

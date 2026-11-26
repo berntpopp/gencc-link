@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.12.0] - 2026-11-26
+
+### Changed
+
+- **Breaking:** the primary payload key follows Response-Envelope Standard v1: a list result is
+  `results` (was `genes`, `diseases` or `submitters`), with `headline`, `total` and the other
+  siblings beside it; a single-record result (`get_gene_disease_assertion`,
+  `resolve_identifier`, the capabilities and diagnostics tools) is one object under `result`.
+
+### Added
+
+- Provenance on every successful data result (Response-Envelope Standard v1.2): `_meta.source`
+  (`gencc`), `_meta.data_version` (the GenCC run date of the export served) and
+  `_meta.retrieved_at` (UTC time that export was taken). `_meta.gencc_release` is unchanged.
+- The vendored envelope JSON Schema (genefoundry-envelope v1.2.0) validates every data tool's
+  result in the test suite.
+
 ## [0.11.0] - 2026-11-19
 
 ### Added

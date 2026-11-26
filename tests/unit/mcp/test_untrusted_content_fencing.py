@@ -217,7 +217,7 @@ async def test_get_gene_curations_full_mode_has_no_notes_surface_yet(mcp_client)
     data = result.structured_content
     assert data["success"] is True
     assert "submissions" not in data
-    for disease in data["diseases"]:
+    for disease in data["results"]:
         assert "notes" not in disease
         for submitter in disease.get("submitters", []):
             assert "notes" not in submitter
@@ -231,7 +231,7 @@ async def test_get_disease_curations_full_mode_has_no_notes_surface_yet(mcp_clie
     data = result.structured_content
     assert data["success"] is True
     assert "submissions" not in data
-    for gene in data["genes"]:
+    for gene in data["results"]:
         assert "notes" not in gene
         for submitter in gene.get("submitters", []):
             assert "notes" not in submitter
@@ -244,7 +244,7 @@ async def test_hostile_notes_is_fenced_at_the_real_mcp_boundary() -> None:
     result = await _call_with_fake_repo([HOSTILE])
     data = result.structured_content
     assert data["success"] is True
-    row = data["submissions"][0]
+    row = data["result"]["submissions"][0]
     fenced = row["notes"]
 
     # 1. typed object with the schema literal
@@ -271,7 +271,7 @@ async def test_hostile_notes_is_fenced_at_the_real_mcp_boundary() -> None:
     # structured_content, must see the same fence, never a bare string.
     assert len(result.content) == 1
     mirrored = json.loads(result.content[0].text)
-    mirrored_notes = mirrored["submissions"][0]["notes"]
+    mirrored_notes = mirrored["result"]["submissions"][0]["notes"]
     assert mirrored_notes == fenced
     assert mirrored_notes["kind"] == "untrusted_text"
     assert "delete_everything" in mirrored_notes["text"]
