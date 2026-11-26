@@ -15,7 +15,7 @@ from gencc_link.mcp.untrusted_content import UntrustedText, enforce_untrusted_te
 from gencc_link.models import BuildMeta
 from gencc_link.models.enums import RESPONSE_MODES, ResponseMode
 from gencc_link.services import shaping
-from gencc_link.services.batch import batch_payload, dedupe_batch
+from gencc_link.services.batch import batch_payload, dedupe_batch, split_unsupported_genes
 from gencc_link.services.cache import TTLCache
 from gencc_link.services.candidates import resolve_miss
 from gencc_link.services.cursor import decode_paged_cursor
@@ -294,6 +294,7 @@ class GenCCService:
     ) -> dict[str, Any]:
         mode = self._validate_mode(response_mode)
         ordered, duplicates = dedupe_batch(genes, field="genes")
+        ordered, unsupported = split_unsupported_genes(ordered)
         limit = self._clamp_limit(limit_per_gene)
         results: list[dict[str, Any]] = []
         unresolved: list[dict[str, str]] = []
@@ -322,6 +323,7 @@ class GenCCService:
             ordered=ordered,
             results=results,
             unresolved=unresolved,
+            unsupported=unsupported,
             duplicates=duplicates,
         )
 

@@ -27,6 +27,7 @@ from gencc_link.exceptions import (
     InvalidInputError,
     NotFoundError,
     QuotaExceededError,
+    UnsupportedGeneIdError,
 )
 from gencc_link.mcp.next_commands import recovery_commands
 from gencc_link.mcp.untrusted_content import UntrustedTextLimitError, sanitize_message
@@ -321,6 +322,10 @@ def _error_envelope(
     field_errors = _field_errors(exc)
     if field_errors is not None:
         envelope["field_errors"] = field_errors
+    if isinstance(exc, UnsupportedGeneIdError):
+        envelope["field"] = field_name
+        envelope["allowed_values"] = list(exc.ACCEPTED_FORMS)
+        meta["next_commands"] = [exc.converter]
     return envelope
 
 
@@ -381,6 +386,8 @@ async def run_mcp_tool(
                 pagination: dict[str, Any] = dict(existing_meta.get("pagination") or {})
                 pagination.setdefault("total_count", result["total"])
                 pagination.setdefault("has_more", bool(result.get("truncated")))
+                next_cursor = (result.get("truncated") or {}).get("next_cursor")
+                pagination.setdefault("next_cursor", next_cursor)
                 meta["pagination"] = pagination
             result["_meta"] = meta
         return result

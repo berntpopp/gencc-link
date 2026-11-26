@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.13.0] - 2026-11-26
+
+### Added
+
+- Gene identifier forms: an Ensembl gene id or an NCBI Gene id, which the GenCC export does
+  not carry, is rejected with `invalid_input` (`field`, `allowed_values`, and the hgnc-link
+  call that converts it in `_meta.next_commands`) on `search_genes`, `get_gene_curations`,
+  `get_gene_disease_assertion`, `find_curations` and `resolve_identifier`, instead of
+  `not_found` or an empty page. `get_genes_curations` lists such an input under `unsupported`
+  and still succeeds.
+- `_meta.pagination.next_cursor` on every paged result (`null` on the last page and on tools
+  that page by offset only).
+
+### Changed
+
+- `get_gene_disease_assertion`: the documented examples are BRCA2 and `MONDO:0012933`.
+
 ## [0.12.0] - 2026-11-26
 
 ### Changed
