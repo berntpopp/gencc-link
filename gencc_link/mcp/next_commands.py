@@ -9,12 +9,31 @@ live schema so a param the target rejects can never ship again.
 
 from __future__ import annotations
 
+import re
+import unicodedata
 from typing import Any
 
 from gencc_link.mcp.untrusted_content import sanitize_message
 from gencc_link.services.gene_ids import foreign_gene_converter
 
 _MAX_NEXT_COMMANDS = 5
+
+# GTS-CORE-TXT-04: a caller value is forwarded into another tool's step only after it
+# passes the strict identifier shape for its kind; free text never is.
+_GENE_ID = re.compile(r"HGNC:\d+|[A-Za-z0-9][A-Za-z0-9-]{0,29}", re.IGNORECASE)
+_DISEASE_ID = re.compile(r"(?:MONDO|OMIM|Orphanet|ORPHA):\d+", re.IGNORECASE)
+_MONDO_ID = re.compile(r"MONDO:\d+", re.IGNORECASE)
+
+
+def _ok(pattern: re.Pattern[str], value: Any) -> bool:
+    return isinstance(value, str) and pattern.fullmatch(value.strip()) is not None
+
+
+def safe_echo(value: Any) -> bool:
+    """True if a caller string may be repeated in a page step of the same call
+    (GTS-CORE-TXT-04): at most 200 characters, no control/format code points (Cc/Cf)."""
+    text = str(value)
+    return len(text) <= 200 and not any(unicodedata.category(c) in ("Cc", "Cf") for c in text)
 
 
 def cmd(tool: str, **arguments: Any) -> dict[str, Any]:
@@ -30,21 +49,19 @@ def _clean(value: Any) -> str:
 
 
 def after_search_genes(gene_curies: list[str], query: str = "") -> list[dict[str, Any]]:
-    """After resolving genes: pull each gene's curations (capped), or cross to disease search.
+    """After resolving genes: pull each gene's curations (capped), or a fixed discovery step.
 
-    On zero hits the original ``query`` is propagated (a gene miss is often a
-    disease term); an empty query yields no suggestion rather than a guaranteed
-    ``invalid_input`` from ``search_diseases(query="")``.
+    A no-hit free-text query is never forwarded (GTS-CORE-TXT-04).
     """
     if not gene_curies:
-        return [cmd("search_diseases", query=query)] if query else []
+        return [cmd("get_server_capabilities")] if query else []
     return [cmd("get_gene_curations", gene_symbol=c) for c in gene_curies[:_MAX_NEXT_COMMANDS]]
 
 
 def after_search_diseases(disease_curies: list[str], query: str = "") -> list[dict[str, Any]]:
     """After resolving diseases: pull each disease's curations (capped), or cross to gene search."""
-    if not disease_curies:
-        return [cmd("search_genes", query=query)] if query else []
+    if not disease_curies:  # never forward a no-hit query (GTS-CORE-TXT-04)
+        return [cmd("get_server_capabilities")] if query else []
     return [cmd("get_disease_curations", disease=c) for c in disease_curies[:_MAX_NEXT_COMMANDS]]
 
 
@@ -86,7 +103,12 @@ def after_genes_curations(payload: dict[str, Any]) -> list[dict[str, Any]]:
         if len(nexts) >= cap:
             break
     if unresolved:
-        nexts.append(cmd("search_genes", query=unresolved[0]["input"]))
+        miss = unresolved[0]["input"]
+        nexts.append(
+            cmd("search_genes", query=miss)
+            if _ok(_GENE_ID, miss)
+            else cmd("get_server_capabilities")
+        )
     if unsupported and (converter := foreign_gene_converter(unsupported[0]["input"])):
         nexts.append(converter)
     return nexts
@@ -111,7 +133,12 @@ def after_diseases_curations(payload: dict[str, Any]) -> list[dict[str, Any]]:
         if len(nexts) >= cap:
             break
     if unresolved:
-        nexts.append(cmd("search_diseases", query=unresolved[0]["input"]))
+        miss = unresolved[0]["input"]
+        nexts.append(
+            cmd("search_diseases", query=miss)
+            if _ok(_DISEASE_ID, miss)
+            else cmd("get_server_capabilities")
+        )
     return nexts
 
 
@@ -135,26 +162,27 @@ def recovery_commands(
     Mirrors the success-path ``next_commands`` so an agent can deterministically
     recover from a failure instead of parsing the prose ``recovery_action``.
     """
+    # GTS-CORE-TXT-04: only values that pass a strict identifier shape are forwarded.
     gene_raw = arguments.get("gene_symbol")
-    gene_in = _clean(gene_raw) if gene_raw else None
-    disease_in = _clean(arguments["disease"]) if arguments.get("disease") else None
-    query_in = _clean(arguments["query"]) if arguments.get("query") else None
+    gene_in = _clean(gene_raw).strip() if _ok(_GENE_ID, gene_raw) else None
+    disease_raw = arguments.get("disease")
+    disease_in = _clean(disease_raw).strip() if _ok(_DISEASE_ID, disease_raw) else None
+    query_raw = arguments.get("query")
+    query_in = _clean(query_raw).strip() if query_raw else None
     if error_code == "not_found":
+        out: list[dict[str, Any]] = []
         if tool == "get_gene_curations" and gene_in:
-            return [cmd("search_genes", query=gene_in)]
+            out.append(cmd("search_genes", query=gene_in))
         if tool == "get_disease_curations" and disease_in:
-            out: list[dict[str, Any]] = [cmd("search_diseases", query=disease_in)]
-            if disease_in.upper().startswith("MONDO:"):
+            out.append(cmd("search_diseases", query=disease_in))
+            if _MONDO_ID.fullmatch(disease_in):
                 # A grouping MONDO term: GenCC curates its children, not the term itself.
                 out.append(cmd("mondo_get_disease_descendants", term=disease_in))
-            return out
         if tool == "get_gene_disease_assertion":
-            out = []
             if gene_in:
                 out.append(cmd("get_gene_curations", gene_symbol=gene_in))
             if disease_in:
                 out.append(cmd("get_disease_curations", disease=disease_in))
-            return out
         if tool == "resolve_identifier" and query_in:
             kind = arguments.get("kind", "auto")
             # Section 2a: get_* on the top candidates first, then search, then Mondo.
@@ -164,17 +192,15 @@ def recovery_commands(
                 else cmd("get_disease_curations", disease=c["id"])
                 for c in (candidates or [])[:2]
             ]
-            if kind != "disease":
+            # The free-text query is forwarded only in a validated identifier shape.
+            if kind != "disease" and _ok(_GENE_ID, query_in):
                 out.append(cmd("search_genes", query=query_in))
-            if kind != "gene":
+            if kind != "gene" and _ok(_DISEASE_ID, query_in):
                 out.append(cmd("search_diseases", query=query_in))
-            if kind != "gene" and not query_in.upper().startswith("MONDO:"):
-                # Cross-server, namespaced: the router passes prefixed names through.
-                out.append(cmd("mondo_resolve_disease", query=query_in))
-            elif kind != "gene":
+            if kind != "gene" and _MONDO_ID.fullmatch(query_in):
                 out.append(cmd("mondo_get_disease_descendants", term=query_in))
-            return out
-    if error_code == "ambiguous_query" and tool == "resolve_identifier" and query_in:
+        return out or [cmd("get_server_capabilities")]
+    if error_code == "ambiguous_query" and tool == "resolve_identifier" and _ok(_GENE_ID, query_in):
         return [
             cmd("get_gene_curations", gene_symbol=query_in),
             cmd("get_disease_curations", disease=query_in),

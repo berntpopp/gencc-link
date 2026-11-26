@@ -216,7 +216,7 @@ class GenCCService:
         summary = self._repo.resolve_gene(gene.strip())
         if summary is None:
             raise NotFoundError(
-                f"No GenCC gene found for {gene!r}. Try search_genes to resolve a symbol "
+                "No GenCC gene matches the given gene_symbol. Try search_genes to resolve a symbol "
                 "or HGNC id."
             )
         pairs = self._repo.get_gene_disease_pairs(summary.gene_curie)
@@ -261,7 +261,7 @@ class GenCCService:
         summary = self._repo.resolve_disease(disease.strip())
         if summary is None:
             raise NotFoundError(
-                f"No GenCC disease found for {disease!r}. Try search_diseases to resolve a "
+                "No GenCC disease matches the given disease. Try search_diseases to resolve a "
                 "label or MONDO id. GenCC curates specific disease terms: for a grouping MONDO "
                 "term, list its descendants with mondo_get_disease_descendants and query those."
             )
@@ -376,10 +376,10 @@ class GenCCService:
 
         gene_summary = self._repo.resolve_gene(gene.strip())
         if gene_summary is None:
-            raise NotFoundError(f"No GenCC gene found for {gene!r}.")
+            raise NotFoundError("No GenCC gene matches the given gene_symbol.")
         disease_summary = self._repo.resolve_disease(disease.strip())
         if disease_summary is None:
-            raise NotFoundError(f"No GenCC disease found for {disease!r}.")
+            raise NotFoundError("No GenCC disease matches the given disease.")
 
         assertion = self._repo.get_gene_disease(
             gene_summary.gene_curie, disease_summary.disease_curie
@@ -469,7 +469,7 @@ class GenCCService:
             gene_summary = self._repo.resolve_gene(gene.strip())
             if gene_summary is None:
                 raise NotFoundError(
-                    f"No GenCC gene found for {gene!r}. Try search_genes to resolve a "
+                    "No GenCC gene matches the given gene_symbol. Try search_genes to resolve a "
                     "symbol or HGNC id."
                 )
             gene = gene_summary.gene_curie
@@ -479,7 +479,7 @@ class GenCCService:
             disease_summary = self._repo.resolve_disease(disease.strip())
             if disease_summary is None:
                 raise NotFoundError(
-                    f"No GenCC disease found for {disease!r}. Try search_diseases to "
+                    "No GenCC disease matches the given disease. Try search_diseases to "
                     "resolve a label or MONDO id."
                 )
             disease = disease_summary.disease_curie
@@ -590,7 +590,7 @@ class GenCCService:
                 result["disease"] = shaping.disease_summary_dict(disease, "compact")
         if kind == "auto" and result["gene"] is not None and result["disease"] is not None:
             raise AmbiguousQueryError(
-                f"{query!r} matches both a gene ({result['gene']['gene_curie']}) and a "
+                f"The query matches both a gene ({result['gene']['gene_curie']}) and a "
                 f"disease ({result['disease']['disease_curie']}); re-run with kind='gene' "
                 "or kind='disease'.",
                 candidates=[result["gene"]["gene_curie"], result["disease"]["disease_curie"]],
