@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Annotated, Any
+from typing import TYPE_CHECKING, Annotated, Any, Literal
 
 from pydantic import Field
 
@@ -23,6 +23,12 @@ if TYPE_CHECKING:
 _MODE = Annotated[
     ResponseMode,
     Field(description="Verbosity: minimal | compact | standard | full.", examples=["compact"]),
+]
+# A search hit has no detail beyond compact, so the search tool does not advertise
+# modes that would return the same payload.
+_SEARCH_MODE = Annotated[
+    Literal["minimal", "compact"],
+    Field(description="Verbosity: minimal | compact.", examples=["compact"]),
 ]
 _GENE_SYMBOL = Annotated[
     str,
@@ -67,7 +73,7 @@ def register_gene_tools(mcp: FastMCP) -> None:
                 examples=["BRCA1", "SKI"],
             ),
         ],
-        response_mode: _MODE = "compact",
+        response_mode: _SEARCH_MODE = "compact",
         limit: _LIMIT = 20,
         offset: _OFFSET = 0,
         cursor: _CURSOR = None,

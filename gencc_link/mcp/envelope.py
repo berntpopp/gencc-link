@@ -14,6 +14,7 @@ import time
 import uuid
 from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
 from typing import Any
 
 from pydantic import ValidationError as PydanticValidationError
@@ -92,10 +93,39 @@ _DATA_RELEASE: str | None = None
 _CITATION_REF = "gencc://citation"
 
 
-def set_data_release(run_date: str | None) -> None:
-    """Record the GenCC data release surfaced in every tool's ``_meta``."""
-    global _DATA_RELEASE
+# When the served export was taken from GenCC: the database build time, which a
+# release build pins to the export's Last-Modified. Set with the release.
+_RETRIEVED_AT: str | None = None
+# Collection keys a tool body may use; the envelope publishes them as `results`.
+_COLLECTION_KEYS = ("genes", "diseases", "submitters")
+
+
+def set_data_release(run_date: str | None, build_utc: str | None = None) -> None:
+    """Record the GenCC data release and its build time surfaced in every tool's ``_meta``."""
+    global _DATA_RELEASE, _RETRIEVED_AT
     _DATA_RELEASE = run_date
+    _RETRIEVED_AT = build_utc
+
+
+def _utc_z(stamp: str | None) -> str:
+    """``stamp`` (ISO 8601) as RFC 3339 UTC with ``Z``; now when there is none."""
+    try:
+        when = datetime.fromisoformat(stamp or "")
+    except ValueError:
+        when = datetime.now(UTC)
+    when = when if when.tzinfo else when.replace(tzinfo=UTC)
+    return when.astimezone(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def _primary_payload(payload: dict[str, Any]) -> None:
+    """Put the payload under `results` (array) or `result` (object), v1 section 1."""
+    if isinstance(payload.get("results"), list) or isinstance(payload.get("result"), dict):
+        return
+    for key in _COLLECTION_KEYS:
+        if isinstance(payload.get(key), list):
+            payload["results"] = payload.pop(key)
+            return
+    payload["result"] = {k: payload.pop(k) for k in list(payload) if k not in ("success", "_meta")}
 
 
 @dataclass
@@ -147,6 +177,12 @@ def _provenance_meta(response_mode: str | None = None, *, is_error: bool = False
         meta["response_mode"] = response_mode
     if _DATA_RELEASE:
         meta["gencc_release"] = _DATA_RELEASE
+    if not is_error:
+        # Provenance (Response-Envelope Standard v1.2): the GenCC run date of the
+        # export served and the time that export was taken.
+        meta["source"] = "gencc"
+        meta["data_version"] = _DATA_RELEASE or "unknown"
+        meta["retrieved_at"] = _utc_z(_RETRIEVED_AT)
     return meta
 
 
@@ -328,6 +364,7 @@ async def run_mcp_tool(
         elapsed_ms = round((time.perf_counter() - start) * 1000, 2)
         if isinstance(result, dict):
             result.setdefault("success", True)
+            _primary_payload(result)
             existing_meta: dict[str, Any] = result.get("_meta") or {}
             meta: dict[str, Any] = {
                 **existing_meta,

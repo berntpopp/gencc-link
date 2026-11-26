@@ -171,7 +171,7 @@ class TestDiagnosticsRefresh:
     async def test_diagnostics_includes_refresh(self, mcp_client) -> None:
         payload = (await mcp_client.call_tool("get_gencc_diagnostics", {})).structured_content
         assert payload["success"] is True
-        assert "refresh" in payload
-        assert "enabled" in payload["refresh"]
-        assert "interval_hours" in payload["refresh"]
-        assert "scheduler_running" in payload["refresh"]
+        assert "refresh" in payload["result"]
+        assert "enabled" in payload["result"]["refresh"]
+        assert "interval_hours" in payload["result"]["refresh"]
+        assert "scheduler_running" in payload["result"]["refresh"]

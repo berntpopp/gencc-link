@@ -200,6 +200,11 @@ def _static_surface() -> dict[str, Any]:
             "the full verbatim citation stays at gencc://citation and in standard/full.",
             "request_id": "_meta.request_id + _meta.elapsed_ms: per-call trace id and "
             "server-side timing on every envelope",
+            "results": "the primary payload: `results` (array) for a list, `result` (object) "
+            "for a single record",
+            "provenance": "_meta.source ('gencc'), _meta.data_version (the GenCC run date of "
+            "the export served) and _meta.retrieved_at (UTC time that export was taken) on "
+            "every successful data result",
             "matched": "find_curations: the submission(s) that satisfied a submission-level "
             "classification/submitter/moi filter (compact/standard/full)",
             "field_errors": "invalid_input only: a list of {field, reason} objects "

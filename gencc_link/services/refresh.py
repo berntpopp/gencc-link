@@ -151,7 +151,7 @@ class RefreshScheduler:
             return
 
         if result.changed:
-            self._reload(result.meta.gencc_run_date)
+            self._reload(result.meta.gencc_run_date, result.meta.build_utc)
             if self._logger:
                 self._logger.info(
                     "refresh applied: database rebuilt",
@@ -163,12 +163,12 @@ class RefreshScheduler:
         self._record(changed=result.changed, run_date=result.meta.gencc_run_date)
 
     @staticmethod
-    def _reload(run_date: str | None) -> None:
+    def _reload(run_date: str | None, build_utc: str | None = None) -> None:
         from gencc_link.mcp.envelope import set_data_release
         from gencc_link.mcp.service_adapters import reset_gencc_service
 
         reset_gencc_service()
-        set_data_release(run_date)
+        set_data_release(run_date, build_utc)
 
     def _record(
         self, *, changed: bool = False, run_date: str | None = None, error: str | None = None
