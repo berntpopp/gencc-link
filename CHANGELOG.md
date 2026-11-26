@@ -15,6 +15,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `results` (was `genes`, `diseases` or `submitters`), with `headline`, `total` and the other
   siblings beside it; a single-record result (`get_gene_disease_assertion`,
   `resolve_identifier`, the capabilities and diagnostics tools) is one object under `result`.
+- **Breaking:** `search_genes` and `search_diseases` accept `response_mode` `minimal` or
+  `compact` only. `standard` and `full` returned the same payload as `compact`; the re-vendored
+  behaviour gate rejects an advertised mode that does nothing.
 
 ### Added
 
